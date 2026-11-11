@@ -1,0 +1,4 @@
+Comparison,Wilcoxon_Stat,raw_p_value,Cliffs_Delta,holm_factor,adjusted_p_value,Significant (alpha=0.05)
+XGBoost vs MLP,5.0,0.0006103515625,0.68,3,0.0018310546875,True
+XGBoost vs Logistic Regression,16.0,0.01025390625,0.2,2,0.0205078125,True
+XGBoost vs Random Forest,33.0,0.1353759765625,0.14666666666666667,1,0.1353759765625,False

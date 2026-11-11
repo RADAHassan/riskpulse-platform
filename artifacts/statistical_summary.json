@@ -1,0 +1,27 @@
+{
+  "pr_auc": {
+    "mean": 0.7997,
+    "ci_95": [
+      0.7075,
+      0.8815
+    ]
+  },
+  "f1_score": {
+    "mean": 0.8143,
+    "ci_95": [
+      0.7368,
+      0.8828
+    ]
+  },
+  "mcc": {
+    "mean": 0.8225,
+    "ci_95": [
+      0.7485,
+      0.8854
+    ]
+  },
+  "methodological_caveats": [
+    "Nadeau-Bengio (2003): Repeated CV folds violate independence assumptions, so CV p-values are inherently optimistic.",
+    "Test set contains 74 positive cases; bootstrap CIs account for finite sample variance in positive class prevalence."
+  ]
+}

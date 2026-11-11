@@ -1,0 +1,12 @@
+# Virtual environment & Python cache
+venv/
+__pycache__/
+*.pyc
+
+# Raw dataset (>100MB GitHub limit)
+data/*.csv
+
+# System / IDE files
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,6 @@
+{
+  "n_samples": 2574,
+  "n_frauds": 74,
+  "silhouette_score": 0.3904,
+  "human_review_rate_pct": 0.43
+}

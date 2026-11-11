@@ -1,0 +1,9 @@
+{
+  "optimal_threshold": 0.1442,
+  "default_loss_usd": 2988.64,
+  "optimized_loss_usd": 2401.72,
+  "monetary_savings_usd": 586.92,
+  "savings_percentage": 19.64,
+  "fp_reduction": -7,
+  "fn_reduction": 7
+}

@@ -1,0 +1,112 @@
+[
+  {
+    "transaction_index": 735,
+    "calibrated_fraud_risk": 0.9655,
+    "ground_truth": 1,
+    "primary_decline_reasons": [
+      {
+        "feature": "V15",
+        "shap_impact": 2.8563,
+        "feature_value": -4.5557
+      },
+      {
+        "feature": "AE_Recon_MSE",
+        "shap_impact": 1.6481,
+        "feature_value": 4.0688
+      },
+      {
+        "feature": "V11",
+        "shap_impact": 1.3697,
+        "feature_value": -4.1558
+      }
+    ]
+  },
+  {
+    "transaction_index": 1243,
+    "calibrated_fraud_risk": 1.0,
+    "ground_truth": 1,
+    "primary_decline_reasons": [
+      {
+        "feature": "V15",
+        "shap_impact": 2.2023,
+        "feature_value": -3.9262
+      },
+      {
+        "feature": "AE_Recon_MSE",
+        "shap_impact": 1.6885,
+        "feature_value": 73.5316
+      },
+      {
+        "feature": "V5",
+        "shap_impact": 1.1986,
+        "feature_value": 8.9042
+      }
+    ]
+  },
+  {
+    "transaction_index": 2147,
+    "calibrated_fraud_risk": 0.3846,
+    "ground_truth": 1,
+    "primary_decline_reasons": [
+      {
+        "feature": "V11",
+        "shap_impact": -3.0273,
+        "feature_value": 1.0774
+      },
+      {
+        "feature": "AE_Recon_MSE",
+        "shap_impact": 1.5684,
+        "feature_value": 4.546
+      },
+      {
+        "feature": "V15",
+        "shap_impact": 1.138,
+        "feature_value": -3.2665
+      }
+    ]
+  },
+  {
+    "transaction_index": 3203,
+    "calibrated_fraud_risk": 1.0,
+    "ground_truth": 1,
+    "primary_decline_reasons": [
+      {
+        "feature": "V15",
+        "shap_impact": 3.1026,
+        "feature_value": -11.608
+      },
+      {
+        "feature": "AE_Recon_MSE",
+        "shap_impact": 1.7076,
+        "feature_value": 22.1585
+      },
+      {
+        "feature": "V5",
+        "shap_impact": 1.0972,
+        "feature_value": 5.1483
+      }
+    ]
+  },
+  {
+    "transaction_index": 4070,
+    "calibrated_fraud_risk": 0.9655,
+    "ground_truth": 1,
+    "primary_decline_reasons": [
+      {
+        "feature": "V15",
+        "shap_impact": 3.2346,
+        "feature_value": -7.4952
+      },
+      {
+        "feature": "AE_Recon_MSE",
+        "shap_impact": 1.7393,
+        "feature_value": 15.1981
+      },
+      {
+        "feature": "V5",
+        "shap_impact": 1.0945,
+        "feature_value": 3.9834
+      }
+    ]
+  }
+]

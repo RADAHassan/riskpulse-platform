@@ -1,0 +1,18 @@
+{
+  "review_lower_bound": 0.01,
+  "review_upper_bound": 0.7,
+  "metrics": {
+    "pr_auc": 0.7984415335031677,
+    "roc_auc": 0.9665760125629287,
+    "f1_score": 0.8153846153846154,
+    "mcc": 0.8230604059895336,
+    "brier_score": 0.0004818640591111034,
+    "ece": 0.00021665829097218005,
+    "total_txns": 42722,
+    "total_reviews": 54,
+    "human_review_rate_pct": 0.1263985768456533,
+    "total_frauds": 74,
+    "frauds_intercepted": 62,
+    "fraud_coverage_pct": 83.78378378378379
+  }
+}

@@ -1,0 +1,5 @@
+cluster_id,total_transactions,fraud_count,fraud_prevalence_pct,uncertainty_count,avg_fraud_probability
+0,1062,61,5.74,5,0.0486
+1,178,2,1.12,0,0.0002
+2,1188,11,0.93,6,0.0026
+3,146,0,0.0,0,0.0001
