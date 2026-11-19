@@ -1,28 +1,61 @@
-# RiskPulse Platform — Enterprise Credit Card Fraud Detection Engine
+# RiskPulse Platform — Validated Temporal Baseline for Imbalanced Fraud Detection
 
-Production-grade, cost-sensitive hybrid fraud detection system combining an **Undercomplete PyTorch Autoencoder** with a **Bayesian-Tuned XGBoost Classifier**, **Monotonic Isotonic Calibration**, and **TreeSHAP Adverse Action Explainability**.
+A temporally validated, fixed-capacity fraud detection baseline on the ULB Credit Card Fraud dataset. Rather than optimizing on leaked stratified splits, this study evaluates model families, probability calibration, dollar-weighted objectives, and rolling-quantile alert policies under strict disjoint Out-Of-Time (OOT) windows.
 
-## Key Engineering Highlights
-- **Hybrid Anomaly Defense:** Undercomplete PyTorch Autoencoder (`31 -> 16 -> 8 -> 16 -> 31`) trained on legitimate transactions ($Y=0$) to inject reconstruction error (`AE_Recon_MSE`) and latent encodings into the supervised feature space.
-- **Cost-Utility Optimization:** Asymmetric banking cost matrix ($C_{FP} = \$10$, $C_{FN} = \text{Amount} + \$25$, $C_{TP} = \$2$) yielding the optimal decision threshold **$t^* = 0.1442$**, reducing net financial loss by **21.00%**.
-- **Probability Calibration:** Expected Calibration Error (**ECE = 0.0002**, **Brier = 0.00048**) via Isotonic Regression.
-- **Temporal Integrity:** Validated on a strict chronological Out-Of-Time (OOT) split ($0\text{h} \to 48\text{h}$) with zero look-ahead leakage (**OOT PR-AUC = 0.7335**, **MCC = 0.8151**).
-- **Regulatory Compliance:** Local TreeSHAP adverse action reason codes for declined transactions (`artifacts/sample_decline_reasons.json`).
+> **Core Finding:** Regularized 29D XGBoost reaches **~0.77 pooled OOT PR-AUC** (`0.7689` at seed 42; `0.7742 ± 0.0041` across 5 seeds) and **~78% recall** at a `0.20%` review budget. Extra features, aggressive hyperparameter tuning, amount weighting, and ensembling add no detectable gain under hourly block-bootstrapped CIs, while sustained fraud bursts remain the primary operational weakness.
 
-## Master Benchmark Summary (Test Set)
+---
 
-| Model / Engineering Phase | Split Type | Cutoff ($t^*$) | PR-AUC | Net Financial Loss | Frauds Caught | Net Savings vs Baseline |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Baseline XGBoost** | Stratified | $0.5000$ | 0.8260 | \$2,988.64 | 53 / 74 (71.6%) | Baseline (\$0.00) |
-| **Phase 1: Calibrated Triage** | Stratified | `[0.005, 0.80]` | 0.8559 | — | 62 / 74 (83.8%) | Requires 54 Manual Reviews |
-| **Phase 2: Cost-Tuned XGBoost** | Stratified | $0.1442$ | **0.8559** | \$2,401.72 | 60 / 74 (81.1%) | +\$586.92 (+19.64%) |
-| **Phase 2: Champion Hybrid (AE + XGB)** | Stratified | **$0.1442$** | 0.8263 | **\$2,360.93** | **62 / 74 (83.8%)** | **+\$627.71 (+21.00%)** |
-| **Phase 2: Stacking (XGB+LGB+CAT)** | Stratified | $0.1442$ | 0.8017 | \$2,401.72 | 60 / 74 (81.1%) | +\$586.92 (+19.64%) |
-| **Phase 2: Asymmetric Focal Loss** | Stratified | $0.1442$ | 0.6600 | \$4,146.93 | 51 / 74 (68.9%) | -\$1,158.29 (Hessian Vanishing) |
-| **Phase 2: Chronological OOT Test** | Time-Based | $0.1293$ | 0.7335 | \$2,825.40 | 39 / 52 (75.0%) | +\$323.76 (Future Savings) |
+## Disjoint OOT Benchmark Summary
 
-## Repository Structure
-- `src/` — Modular training, calibration, cost optimization, Autoencoder, OOT, stacking, and SHAP scripts.
-- `artifacts/` — Exported `.joblib` models, isotonic calibrators, JSON audit logs, and cost curves.
-- `examples_output/` — UMAP projections, confusion maps, and reconstruction separation plots.
-- `run_all.sh` — End-to-end master execution pipeline.
+Evaluated across 3 disjoint chronological OOT windows (`[60%, 73%]`, `[73%, 86%]`, `[86%, 100%]`; pooled `N = 113,491` transactions, `131` frauds) using a `6,000`-transaction hourly block bootstrap (`1,000` replicates, seed `42`).
+
+| Model (29D: `Amount` + `V1–V28`) | Pooled OOT PR-AUC | Recall @ 0.20% Budget | Precision @ 0.20% | Dollar Recall @ 0.20% |
+| :--- | :---: | :---: | :---: | :---: |
+| **Default XGBoost 29D** | `0.7762` | ~78% | ~45% | `64.4%` |
+| **Regularized XGBoost 29D (Primary)** | `0.7689` *(5-seed: `0.7742 ± 0.0041`)* | `78.6%` | `45.6%` | `64.4%` |
+| **Logistic Regression 29D** | `0.7358` | — | — | — |
+| **LightGBM 29D** | `0.7302` | — | — | — |
+| **Log-Amount-Weighted XGB 29D (`1–3×`)** | `0.7613` `[0.6785, 0.8268]` | `77.1%` | `44.7%` | `64.4%` |
+| **Linear-Amount-Weighted XGB 29D (cap `$1k`)** | `0.7791` `[0.7045, 0.8370]` | `80.2%` | `46.5%` | `65.6%` |
+
+* **Dollar-Recall Ceiling:** Even strong linear dollar-proportional weighting produces no detectable change (`ΔPR-AUC = -0.0094 [-0.0266, +0.0102]`; `+1.2` pp dollar recall, ~1 transaction), indicating the `64.4%–65.6%` ceiling is driven by feature-space separability rather than an unweighted loss artifact.
+
+![Disjoint Pooled OOT Precision-Recall Curves](figures/fig_pr_curves.png)
+
+---
+
+## Probability Calibration
+
+Class weighting (`scale_pos_weight`) makes raw XGBoost probabilities severely overconfident (`BSS = -0.7164`, `ECE = 0.00656`). Fitting monotonic **Isotonic Regression** on the preceding calibration window raises Brier Skill Score to **`+0.6390`** (`ECE = 0.00011`, vs. Platt scaling `BSS = +0.4767`). Because overall ECE is dominated by ~113,300 near-zero-score transactions, high-score calibration is evidenced by BSS and the top probability bin (`n = 73`, `98.6%` observed fraud rate).
+
+![Disjoint OOT Calibration Reliability](figures/fig_reliability.png)
+
+---
+
+## Streaming Alert Policy & Burst Resilience (`0.20%` Budget)
+
+Online threshold adaptation using a `W = 20,000` label-free rolling-score quantile paired with an isotonic high-confidence guard (`P_cal >= 0.80`):
+
+| Stream Scenario | Policy | Alerts (Rate) | Recall (TP / Total) | Precision |
+| :--- | :--- | :---: | :---: | :---: |
+| **Normal OOT Stream** (`131` frauds) | `quarantine_guard_only` | `269` (`0.237%`) | `79.4%` (`104 / 131`) | `38.7%` |
+| **Burst 1** (`+500` jittered @ 20k; `631` total) | `quarantine_guard_only` | `485` (`0.425%`) | `55.2%` (`348 / 631`) | `71.8%` |
+| **Burst 2** (`+1,000` jittered @ 65k; `1,131` total) | `standard` | `501` (`0.438%`) | `34.9%` (`395 / 1,131`) | `78.8%` |
+| **Burst 2** (`+1,000` jittered @ 65k; `1,131` total) | `quarantine_guard_only` | `634` (`0.554%`) | `44.0%` (`498 / 1,131`) | `78.5%` |
+
+* `quarantine_guard_only` prevents high-confidence (`P_cal >= 0.80`) burst alerts from polluting the rolling buffer—recovering `+103` additional frauds in Burst 2—while avoiding the `7×` alert explosion of `quarantine_all`.
+* **Operational Limit:** No tested variant maintains the `0.20%` fixed analyst capacity under a sustained burst (Burst 2 reaches `~2.8×` budget and still misses `56%` of frauds); a hard per-window alert cap is the next operational control.
+
+---
+
+## Repository Structure & Reproducibility
+
+* `src/ml/predictor.py` — Production inference wrapper with `quarantine_guard_only` rolling buffer logic.
+* `src/ml/final_disjoint_reconciliation.py` — Disjoint rolling OOT evaluation & hourly block-bootstrap CIs.
+* `src/ml/final_two_checks.py` — Linear vs. log dollar-weighting ablation and independent 1,000-fraud burst check.
+* `src/ml/complete_table1_and_plots.py` & `src/ml/update_final_figures.py` — Complete Table 1 metrics and diagnostic plots.
+* `figures/` — Final PR-curve (`fig_pr_curves.png`) and bin-count annotated reliability (`fig_reliability.png`) plots.
+* `artifacts/` — Exported `.joblib` model bundles and audit outputs.
+
+**Environment (reproducible with fixed seeds):** `Python 3.14.8` · `xgboost 3.4.1` · `scikit-learn 1.9.1` · `lightgbm 4.7.0`
