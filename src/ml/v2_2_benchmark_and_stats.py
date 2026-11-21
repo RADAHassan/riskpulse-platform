@@ -100,11 +100,22 @@ def build_model(name, spw, seed):
 
 
 def measure_single_txn_latency_ms(model, X_te, n_calls=SINGLE_TXN_CALLS):
-    n_eval = min(n_calls, len(X_te))
-    t0 = time.perf_counter()
-    for i in range(n_eval):
-        _ = model.predict_proba(X_te[i : i + 1])
-    return ((time.perf_counter() - t0) * 1000.0) / n_eval
+    orig_jobs = {}
+    if hasattr(model, "get_params") and hasattr(model, "set_params"):
+        for k, v in model.get_params().items():
+            if k == "n_jobs" or k.endswith("__n_jobs"):
+                orig_jobs[k] = v
+        if orig_jobs:
+            model.set_params(**{k: 1 for k in orig_jobs})
+    try:
+        n_eval = min(n_calls, len(X_te))
+        t0 = time.perf_counter()
+        for i in range(n_eval):
+            _ = model.predict_proba(X_te[i : i + 1])
+        return ((time.perf_counter() - t0) * 1000.0) / n_eval
+    finally:
+        if orig_jobs:
+            model.set_params(**orig_jobs)
 
 
 def main():
@@ -227,9 +238,20 @@ def main():
     print("\n=== BENCHMARK RESULTS (10 Expanding OOT Windows, Multi-Seed, Isotonic-Calibrated) ===")
     print(bench_df.to_string(index=False))
 
-    # 2. Friedman Omnibus Test (all 5 models, df = 4, on 10 window-level seed-averaged PR-AUCs)
+    # 2. Friedman Omnibus Tests (5-model df=4, and 4-model excluding SVM df=3)
     pr_arrays = [metrics_store[m]["pr_auc"] for m in model_names]
     f_stat, f_pval = friedmanchisquare(*pr_arrays)
+    four_names = [m for m in model_names if m != "SVM (RBF)"]
+    f_stat_4, f_pval_4 = friedmanchisquare(*[metrics_store[m]["pr_auc"] for m in four_names])
+    print(f"\n=== FRIEDMAN OMNIBUS (PR-AUC, 10 Windows) ===")
+    print(f"5-model (all, df=4):       chi2={f_stat:.4f}, p={f_pval:.6f}")
+    print(f"4-model (no SVM, df=3):    chi2={f_stat_4:.4f}, p={f_pval_4:.6f}")
+    import json as _json
+    Path("artifacts/friedman_summary.json").write_text(_json.dumps({
+        "friedman_5_models": {"chi2": round(float(f_stat), 4), "p_value": round(float(f_pval), 6), "df": 4},
+        "friedman_4_models_no_svm": {"chi2": round(float(f_stat_4), 4), "p_value": round(float(f_pval_4), 6), "df": 3},
+        "per_window_pr_auc": {m: [round(float(x), 6) for x in metrics_store[m]["pr_auc"]] for m in model_names},
+    }, indent=2))
 
     # 3. Pairwise Wilcoxon vs XGBoost + Holm-Bonferroni + Cliff's Delta
     xgb_pr = np.asarray(metrics_store["XGBoost"]["pr_auc"])
