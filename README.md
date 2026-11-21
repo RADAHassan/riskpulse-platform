@@ -59,3 +59,15 @@ Online threshold adaptation using a `W = 20,000` label-free rolling-score quanti
 * `artifacts/` — Exported `.joblib` model bundles and audit outputs.
 
 **Environment (reproducible with fixed seeds):** `Python 3.14.8` · `xgboost 3.4.1` · `scikit-learn 1.9.1` · `lightgbm 4.7.0`
+
+---
+
+## v2 Research Extensions (ULB Policy + IEEE-CIS Cross-Dataset Replication)
+
+Evaluated on branch `feat/v2-ieee-and-policy` using the same strict disjoint OOT protocol (`[60%, 73%]`, `[73%, 86%]`, `[86%, 100%]`), post-hoc Isotonic calibration, and block-bootstrapped 95% CIs:
+
+* **IEEE-CIS Disjoint OOT Baseline (`N=590,537`, `20,663` frauds):** Pooled OOT PR-AUC **`0.4835`** (`[0.4576, 0.5087]`); Isotonic calibration repairs raw Brier Skill Score from **`-1.0234` → `+0.2991`**.
+* **Strictly Causal Entity & Velocity Features:** Both `card1+addr1` (1h/24h rolling windows, `0.4833`, `ΔPR-AUC = -0.0002`, 95% CI `[-0.0043, +0.0046]`) and `card1+addr1+D1` (`0.4818`) match the static baseline due to IEEE-CIS's pre-engineered `C1–C14` and `D1–D15` features.
+* **Expected-Loss Queue Ranking (`P_cal × (Amount + $25)`):** Flat on ULB (`64.4% → 64.4%`, 95% CI `[-2.7%, +6.5%]`), but lifts IEEE-CIS dollar recall by **`+20.4 pp`** at 2% budget (`27.2% → 47.6%`) and **`+16.2 pp`** at 5% budget (`49.9% → 66.1%`).
+* **Novel Attack Blind-Spot Test (IEEE-CIS):** Holding out `4,412` `ProductCD='C'` frauds from training drops OOT recall on that channel to **`0.0%` (`0/3,596`)** vs. **`45.2%` (`2,296/5,079`)** on seen channels at a 5% budget.
+* **Two-Tier Streaming Policy (`src/ml/predictor.py`):** Auto-declines (`P_cal >= 0.80`) bypass the human review cap (`88.5%` precision on IEEE-CIS), while the hard-capped human queue stays strictly under budget (`1.92%` vs. `2.0%` cap), delivering **`40.0%` combined recall** and **`53.9%` overall precision**.
