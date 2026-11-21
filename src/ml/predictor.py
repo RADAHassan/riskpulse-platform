@@ -34,14 +34,12 @@ class RiskPulseMLPredictor:
         self.human_alerts_in_window = 0
         self.live_mse_buffer = deque(maxlen=self.W)
 
-        # Load Mondrian conformal serving quantiles (Task 4 integration)
-        self.q_legit = 0.05
-        self.q_fraud = 0.95
+        # Load canonical-model Mondrian conformal quantiles (Task 4)
+        self.q_legit = 0.00962
+        self.q_fraud = 0.9619
         c_path = Path(conformal_path)
         if c_path.exists():
-            with open(c_path, "r") as f:
-                c_data = json.load(f)
-            sq = c_data.get("serving_quantiles", {})
+            sq = json.loads(c_path.read_text()).get("serving_quantiles", {})
             if "q_legit" in sq and "q_fraud" in sq:
                 self.q_legit = float(sq["q_legit"])
                 self.q_fraud = float(sq["q_fraud"])
@@ -55,29 +53,29 @@ class RiskPulseMLPredictor:
         ae_mse = float(self.ae.transform(x)[0, 0])
         expected_loss = cal_prob * (float(amount) + self.investigation_cost)
 
-        # Mondrian conformal prediction set & boundary uncertainty score
+        # Mondrian conformal prediction set & consistent uncertainty score
         conformal_set = []
         if cal_prob <= self.q_legit:
             conformal_set.append("LEGIT")
         if (1.0 - cal_prob) <= self.q_fraud:
             conformal_set.append("FRAUD")
         conformal_review_flag = len(conformal_set) != 1
-        uncertainty_score = round(min(cal_prob, 1.0 - cal_prob) * 2.0, 6)
+        uncertainty_score = 1.0 if conformal_review_flag else 0.0
 
         tau_q = float(np.quantile(self.score_buffer, 1.0 - self.target_rate))
         flag_quantile = raw_score >= tau_q
         flag_guard = cal_prob >= self.guard_prob
         human_cap_reached = self.human_alerts_in_window >= self.max_human_alerts
 
-        # Two-tier policy:
-        # 1) AUTO_DECLINE (P_cal >= guard) bypasses both the score buffer and human cap.
-        # 2) MANUAL_REVIEW is strictly capped at max_human_alerts per rolling window W.
-        if flag_guard:
+        # Uncertainty-aware two-tier policy:
+        # 1) High-confidence AUTO_DECLINE only when P_cal >= guard AND conformal set is certain.
+        # 2) Conformal-uncertain or quantile-flagged transactions route to capped MANUAL_REVIEW.
+        if flag_guard and not conformal_review_flag:
             decision = "AUTO_DECLINE"
             queued_human = 0
         else:
             self.score_buffer.append(raw_score)
-            if flag_quantile and not human_cap_reached:
+            if (conformal_review_flag or flag_quantile) and not human_cap_reached:
                 decision = "MANUAL_REVIEW"
                 queued_human = 1
             else:

@@ -158,7 +158,7 @@ def main():
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5.4), dpi=150)
     panels = [
-        (emb_pca, f"PCA (Trust={metrics['pca']['trustworthiness_k15']:.3f}, Sil={metrics['pca']['silhouette_fraud_vs_legit']:.3f})", "PC1", "PC2", True),
+        (emb_pca, f"PCA (Trust={metrics['pca']['trustworthiness_k15']:.3f}, Sil={metrics['pca']['silhouette_fraud_vs_legit']:.3f})", "PC1", "PC2", False),
         (emb_tsne, f"t-SNE (Trust={metrics['tsne']['trustworthiness_k15']:.3f}, Sil={metrics['tsne']['silhouette_fraud_vs_legit']:.3f})", "t-SNE 1", "t-SNE 2", False),
         (emb_umap, f"UMAP (Trust={metrics['umap']['trustworthiness_k15']:.3f}, Sil={metrics['umap']['silhouette_fraud_vs_legit']:.3f})", "UMAP 1", "UMAP 2", False),
     ]

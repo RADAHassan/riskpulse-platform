@@ -13,9 +13,11 @@
     "fraud_class_1": 0.85
   },
   "serving_quantiles": {
-    "source_window": "W3 [86%-100%]",
-    "q_legit": 0.00507,
-    "q_fraud": 0.88247
+    "source_model": "riskpulse-29d-v2.0-canonical",
+    "calibration_block": "[76%-86%] deduplicated ULB",
+    "n_cal_frauds": 43,
+    "q_legit": 0.00962,
+    "q_fraud": 0.9619
   },
   "pooled_oot": {
     "total_txns": 113491,
