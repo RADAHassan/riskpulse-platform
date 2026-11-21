@@ -1,0 +1,46 @@
+{
+  "pr_auc": {
+    "mean": 0.7997,
+    "ci_95": [
+      0.7075,
+      0.8815
+    ]
+  },
+  "f1_score": {
+    "mean": 0.8143,
+    "ci_95": [
+      0.7368,
+      0.8828
+    ]
+  },
+  "mcc": {
+    "mean": 0.8225,
+    "ci_95": [
+      0.7485,
+      0.8854
+    ]
+  },
+  "methodological_caveats": [
+    "Nadeau-Bengio (2003): Repeated CV folds violate independence assumptions, so CV p-values are inherently optimistic.",
+    "Test set contains 74 positive cases; bootstrap CIs account for finite sample variance in positive class prevalence."
+  ],
+  "friedman_omnibus": {
+    "metric": "PR-AUC",
+    "cv_protocol": "3x5 RepeatedStratifiedKFold (15 folds)",
+    "models": [
+      "Logistic Regression",
+      "Random Forest",
+      "XGBoost",
+      "MLP"
+    ],
+    "mean_pr_auc": {
+      "Logistic Regression": 0.7152,
+      "Random Forest": 0.8235,
+      "XGBoost": 0.765,
+      "MLP": 0.8365
+    },
+    "friedman_chi2": 41.0,
+    "p_value": 6.539e-09,
+    "significant_alpha_0_05": true
+  }
+}
