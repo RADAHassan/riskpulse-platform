@@ -44,18 +44,11 @@ def main():
     X_cal, y_cal = X_all[tr_end:cal_end], y_all[tr_end:cal_end]
     X_oot, y_oot = X_all[cal_end:], y_all[cal_end:]
 
-    spw = (y_tr == 0).sum() / max((y_tr == 1).sum(), 1)
-    model = xgb.XGBClassifier(
-        n_estimators=220,
-        max_depth=3,
-        learning_rate=0.05,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        scale_pos_weight=spw,
-        eval_metric="logloss",
-        random_state=SEED,
-        n_jobs=-1,
-    )
+    import joblib
+    bundle = joblib.load("artifacts/riskpulse_29d_bundle.joblib")
+    params = bundle["xgb_model"].get_params()
+    params.update({"random_state": SEED, "n_jobs": -1})
+    model = xgb.XGBClassifier(**params)
     model.fit(X_tr, y_tr)
     raw_cal = model.predict_proba(X_cal)[:, 1]
     raw_oot = model.predict_proba(X_oot)[:, 1]
