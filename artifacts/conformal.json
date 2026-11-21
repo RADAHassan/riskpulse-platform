@@ -105,7 +105,16 @@
       "combined_precision": 0.2388,
       "max_human_queue_utilization": 1.0
     },
-    "uncertainty_aware_two_tier": {
+    "guard_only_uncertainty_default": {
+      "n_test": 28373,
+      "n_frauds": 22,
+      "auto_declines": 20,
+      "manual_reviews": 47,
+      "combined_recall": 0.7273,
+      "combined_precision": 0.2388,
+      "max_human_queue_utilization": 1.0
+    },
+    "full_band_uncertainty": {
       "n_test": 28373,
       "n_frauds": 22,
       "auto_declines": 20,

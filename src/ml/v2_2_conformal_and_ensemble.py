@@ -37,9 +37,9 @@ def fit_calibrated_xgb(X_tr, y_tr, X_iso, y_iso, seed):
     return model, iso
 
 
-def replay_policy(oot_df, use_uncertainty_routing):
+def replay_policy(oot_df, use_uncertainty_routing, uncertainty_downgrade_only=True):
     from src.ml.predictor import RiskPulseMLPredictor
-    p = RiskPulseMLPredictor(use_uncertainty_routing=use_uncertainty_routing)
+    p = RiskPulseMLPredictor(use_uncertainty_routing=use_uncertainty_routing, uncertainty_downgrade_only=uncertainty_downgrade_only)
     y_true = oot_df["Class"].values
     decs, max_u = [], 0.0
     for row in oot_df.itertuples(index=False):
@@ -164,8 +164,9 @@ def main():
     oot_df = df.iloc[c1:]
     out["policy_replay_comparison"] = {
         "oot_block": "[90%-100%] deduplicated ULB",
-        "baseline_two_tier": replay_policy(oot_df, use_uncertainty_routing=False),
-        "uncertainty_aware_two_tier": replay_policy(oot_df, use_uncertainty_routing=True),
+        "baseline_two_tier": replay_policy(oot_df, use_uncertainty_routing=False, uncertainty_downgrade_only=True),
+        "guard_only_uncertainty_default": replay_policy(oot_df, use_uncertainty_routing=True, uncertainty_downgrade_only=True),
+        "full_band_uncertainty": replay_policy(oot_df, use_uncertainty_routing=True, uncertainty_downgrade_only=False),
     }
     Path("artifacts/conformal.json").write_text(json.dumps(out, indent=2))
     print("\n=== POOLED OOT ===", json.dumps(out["pooled_oot"], indent=2))

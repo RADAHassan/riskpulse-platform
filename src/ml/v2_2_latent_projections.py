@@ -172,7 +172,7 @@ def main():
     for ax, (emb, title, xl, yl, clip_axes) in zip(axes, panels):
         ax.scatter(emb[legit_m, 0], emb[legit_m, 1], c="#94a3b8", s=8, alpha=0.35, label="Legitimate")
         ax.scatter(emb[fraud_m, 0], emb[fraud_m, 1], c="#dc2626", s=18, alpha=0.85, label="Fraud")
-        ax.scatter(emb[rev_m, 0], emb[rev_m, 1], c="#f59e0b", s=26, marker="^", edgecolor="black", linewidth=0.4, label="Conformal Review (Task 4)")
+        ax.scatter(emb[rev_m, 0], emb[rev_m, 1], c="#f59e0b", s=26, marker="^", edgecolor="black", linewidth=0.4, label="Conformal Review ([50%, 60%] Cal)")
         if clip_axes:
             ax.set_xlim(x_lo, x_hi)
         ax.set_title(title, fontsize=10.5, fontweight="bold")

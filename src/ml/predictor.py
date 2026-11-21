@@ -14,6 +14,7 @@ class RiskPulseMLPredictor:
         conformal_path: str = "artifacts/conformal.json",
         investigation_cost: float = 25.0,
         uncertainty_review_threshold: float = 0.25,
+        uncertainty_downgrade_only: bool = True,
         use_uncertainty_routing: bool = True,
     ):
         bundle = joblib.load(Path(bundle_path))
@@ -29,6 +30,7 @@ class RiskPulseMLPredictor:
         self.guard_prob = cfg["auto_decline_prob_guard"]
         self.investigation_cost = float(cfg.get("investigation_cost", investigation_cost))
         self.uncertainty_review_threshold = float(uncertainty_review_threshold)
+        self.uncertainty_downgrade_only = bool(uncertainty_downgrade_only)
         self.use_uncertainty_routing = bool(use_uncertainty_routing)
         self.buffer_policy = "quarantine_guard_only"
         self.queue_policy = "two_tier_capped_human"
@@ -38,9 +40,8 @@ class RiskPulseMLPredictor:
         self.human_alerts_in_window = 0
         self.live_mse_buffer = deque(maxlen=self.W)
 
-        # Load canonical-model Mondrian conformal quantiles (reproduced by v2_2_conformal_and_ensemble.py)
         self.q_legit = 0.00962
-        self.q_fraud = 0.9619
+        self.q_fraud = 0.9993
         c_path = Path(conformal_path)
         if c_path.exists():
             sq = json.loads(c_path.read_text()).get("serving_quantiles", {})
@@ -57,7 +58,6 @@ class RiskPulseMLPredictor:
         ae_mse = float(self.ae.transform(x)[0, 0])
         expected_loss = cal_prob * (float(amount) + self.investigation_cost)
 
-        # 1) Mondrian split-conformal prediction set
         conformal_set = []
         if cal_prob <= self.q_legit:
             conformal_set.append("LEGIT")
@@ -65,21 +65,28 @@ class RiskPulseMLPredictor:
             conformal_set.append("FRAUD")
         conformal_review_flag = len(conformal_set) != 1
 
-        # 2) Continuous boundary uncertainty in [0, 1] (peaks at p = 0.50)
         uncertainty_score = round(2.0 * min(cal_prob, 1.0 - cal_prob), 6)
-        high_uncertainty = self.use_uncertainty_routing and (uncertainty_score >= self.uncertainty_review_threshold)
-        conf_route = self.use_uncertainty_routing and conformal_review_flag
+        high_uncertainty = self.use_uncertainty_routing and (
+            uncertainty_score >= self.uncertainty_review_threshold
+        )
+        conf_route = (
+            self.use_uncertainty_routing
+            and (not self.uncertainty_downgrade_only)
+            and conformal_review_flag
+        )
+        mid_band_route = (
+            self.use_uncertainty_routing
+            and (not self.uncertainty_downgrade_only)
+            and high_uncertainty
+        )
 
         tau_q = float(np.quantile(self.score_buffer, 1.0 - self.target_rate))
         flag_quantile = raw_score >= tau_q
         flag_guard = cal_prob >= self.guard_prob
         human_cap_reached = self.human_alerts_in_window >= self.max_human_alerts
 
-        # Uncertainty-aware two-tier policy:
-        # 1) High-confidence AUTO_DECLINE when P_cal >= guard AND uncertainty < threshold.
-        # 2) Borderline AUTO_DECLINE (P_cal >= guard AND high_uncertainty) downgrades to MANUAL_REVIEW
-        #    if human capacity is available (fails safe to AUTO_DECLINE if cap is full).
-        # 3) Otherwise, high_uncertainty, conformal_review_flag, or quantile-flagged cases go to MANUAL_REVIEW.
+        # Guard-only mode (default): downgrades uncertain AUTO_DECLINE to MANUAL_REVIEW
+        # without displacing quantile-flagged alerts in the capped queue.
         if flag_guard and not high_uncertainty:
             decision = "AUTO_DECLINE"
             queued_human = 0
@@ -92,7 +99,7 @@ class RiskPulseMLPredictor:
                 queued_human = 0
         else:
             self.score_buffer.append(raw_score)
-            if (high_uncertainty or conf_route or flag_quantile) and not human_cap_reached:
+            if (mid_band_route or conf_route or flag_quantile) and not human_cap_reached:
                 decision = "MANUAL_REVIEW"
                 queued_human = 1
             else:
