@@ -111,7 +111,7 @@ if __name__ == "__main__":
                 if x > 0.05:
                     ax.annotate(f"n={c}", (x, y), textcoords="offset points", xytext=(0, 7), ha="center", fontsize=7.5, color=color, fontweight="bold")
 
-    ax.set_xlabel("Mean Predicted Probability (marker size ∝ log10 bin count)", fontsize=9.5)
+    ax.set_xlabel("Mean Predicted Probability (marker size proportional to log10 bin count)", fontsize=9.5)
     ax.set_ylabel("Observed Fraud Fraction", fontsize=10)
     ax.set_title("Disjoint OOT Calibration Reliability (Regularized XGBoost 29D)", fontsize=10.5, fontweight="bold")
     ax.set_xlim(-0.03, 1.04)
