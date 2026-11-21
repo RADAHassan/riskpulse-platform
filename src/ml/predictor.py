@@ -1,8 +1,20 @@
 import json
+import logging
 import joblib
 import numpy as np
 from collections import deque
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _resolve_artifact(path: str | Path) -> Path:
+    p = Path(path)
+    if p.exists() or p.is_absolute():
+        return p
+    candidate = _REPO_ROOT / p
+    return candidate if candidate.exists() else p
 
 
 class RiskPulseMLPredictor:
@@ -17,7 +29,7 @@ class RiskPulseMLPredictor:
         uncertainty_downgrade_only: bool = True,
         use_uncertainty_routing: bool = True,
     ):
-        bundle = joblib.load(Path(bundle_path))
+        bundle = joblib.load(_resolve_artifact(bundle_path))
         self.version = bundle["model_version"]
         self.scaler = bundle["scaler"]
         self.clf = bundle["xgb_model"]
@@ -40,14 +52,24 @@ class RiskPulseMLPredictor:
         self.human_alerts_in_window = 0
         self.live_mse_buffer = deque(maxlen=self.W)
 
-        self.q_legit = 0.00962
-        self.q_fraud = 0.9993
-        c_path = Path(conformal_path)
+        self.q_legit = 0.23462
+        self.q_fraud = 0.95251
+        c_path = _resolve_artifact(conformal_path)
+        loaded_quantiles = False
         if c_path.exists():
             sq = json.loads(c_path.read_text()).get("serving_quantiles", {})
             if "q_legit" in sq and "q_fraud" in sq:
                 self.q_legit = float(sq["q_legit"])
                 self.q_fraud = float(sq["q_fraud"])
+                loaded_quantiles = True
+        if not loaded_quantiles:
+            logger.warning(
+                "Conformal quantiles not found at %s; falling back to served raw-score defaults "
+                "(q_legit=%.5f, q_fraud=%.5f).",
+                conformal_path,
+                self.q_legit,
+                self.q_fraud,
+            )
 
     def score_transaction(self, amount: float, v_features: list[float]) -> dict:
         amt_scaled = self.scaler.transform(np.array([[amount]], dtype=float))[0, 0]
