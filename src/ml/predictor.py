@@ -54,14 +54,19 @@ class RiskPulseMLPredictor:
 
         self.q_legit = 0.23462
         self.q_fraud = 0.95251
+        self.abstention_tau_dist = 0.402537
         c_path = _resolve_artifact(conformal_path)
         loaded_quantiles = False
         if c_path.exists():
-            sq = json.loads(c_path.read_text()).get("serving_quantiles", {})
+            c_data = json.loads(c_path.read_text())
+            sq = c_data.get("serving_quantiles", {})
             if "q_legit" in sq and "q_fraud" in sq:
                 self.q_legit = float(sq["q_legit"])
                 self.q_fraud = float(sq["q_fraud"])
                 loaded_quantiles = True
+            ap = c_data.get("abstention_policy", {})
+            if "tau_dist" in ap:
+                self.abstention_tau_dist = float(ap["tau_dist"])
         if not loaded_quantiles:
             logger.warning(
                 "Conformal quantiles not found at %s; falling back to served raw-score defaults "
@@ -150,6 +155,9 @@ class RiskPulseMLPredictor:
             "human_cap_reached": human_cap_reached,
             "ae_recon_mse": round(ae_mse, 6),
             "uncertainty_score": uncertainty_score,
+            "raw_uncertainty": round(2.0 * min(raw_score, 1.0 - raw_score), 6),
+            "threshold_distance": round(abs(raw_score - tau_q), 6),
+            "human_review": bool(abs(raw_score - tau_q) <= self.abstention_tau_dist),
             "conformal_set": conformal_set,
             "conformal_review_flag": conformal_review_flag,
         }

@@ -135,5 +135,11 @@
       "combined_precision": 0.15,
       "max_human_queue_utilization": 1.0
     }
+  },
+  "abstention_policy": {
+    "method": "threshold_proximity",
+    "target_abstention_rate": 0.005,
+    "calibration_operating_threshold": 0.724661,
+    "tau_dist": 0.402537
   }
 }
