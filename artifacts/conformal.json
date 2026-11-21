@@ -1,0 +1,74 @@
+{
+  "method": "Mondrian (class-conditional) split-conformal prediction + 5-seed calibrated XGBoost ensemble",
+  "nonconformity_score": "1 - p_cal(true_class)",
+  "seeds": [
+    7,
+    21,
+    42,
+    84,
+    128
+  ],
+  "target_coverage": {
+    "legit_class_0": 0.995,
+    "fraud_class_1": 0.85
+  },
+  "pooled_oot": {
+    "total_txns": 113491,
+    "total_frauds": 131,
+    "empirical_coverage_overall": 0.9945,
+    "empirical_coverage_legit": 0.9947,
+    "empirical_coverage_fraud": 0.8168,
+    "total_human_reviews": 1020,
+    "human_review_rate_pct": 0.899,
+    "ensemble_std_legit": 0.00021,
+    "ensemble_std_fraud": 0.02884,
+    "ensemble_std_review_cases": 0.00539
+  },
+  "windows": [
+    {
+      "window": "W1 [60%-73%]",
+      "n_test": 36884,
+      "n_frauds": 33,
+      "q_legit": 0.00963,
+      "q_fraud": 0.88148,
+      "empirical_coverage_overall": 0.9946,
+      "empirical_coverage_legit": 0.9948,
+      "empirical_coverage_fraud": 0.7576,
+      "human_review_count": 165,
+      "human_review_rate_pct": 0.447,
+      "ensemble_std_legit": 0.0003,
+      "ensemble_std_fraud": 0.06013,
+      "ensemble_std_review_cases": 0.01213
+    },
+    {
+      "window": "W2 [73%-86%]",
+      "n_test": 36885,
+      "n_frauds": 53,
+      "q_legit": 0.00439,
+      "q_fraud": 0.9981,
+      "empirical_coverage_overall": 0.9937,
+      "empirical_coverage_legit": 0.9938,
+      "empirical_coverage_fraud": 0.9434,
+      "human_review_count": 704,
+      "human_review_rate_pct": 1.909,
+      "ensemble_std_legit": 0.00013,
+      "ensemble_std_fraud": 0.02474,
+      "ensemble_std_review_cases": 0.00068
+    },
+    {
+      "window": "W3 [86%-100%]",
+      "n_test": 39722,
+      "n_frauds": 45,
+      "q_legit": 0.00507,
+      "q_fraud": 0.88247,
+      "empirical_coverage_overall": 0.9952,
+      "empirical_coverage_legit": 0.9955,
+      "empirical_coverage_fraud": 0.7111,
+      "human_review_count": 151,
+      "human_review_rate_pct": 0.38,
+      "ensemble_std_legit": 0.0002,
+      "ensemble_std_fraud": 0.01071,
+      "ensemble_std_review_cases": 0.01998
+    }
+  ]
+}
