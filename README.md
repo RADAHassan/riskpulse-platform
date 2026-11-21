@@ -2,7 +2,7 @@
 
 A temporally validated, fixed-capacity fraud detection baseline on the ULB Credit Card Fraud dataset. Rather than optimizing on leaked stratified splits, this study evaluates model families, probability calibration, dollar-weighted objectives, and rolling-quantile alert policies under strict disjoint Out-Of-Time (OOT) windows.
 
-> **Core Finding:** Regularized 29D XGBoost reaches **~0.77 pooled OOT PR-AUC** (`0.7689` at seed 42; `0.7742 ± 0.0041` across 5 seeds) and **~78% recall** at a `0.20%` review budget. Extra features, aggressive hyperparameter tuning, amount weighting, and ensembling add no detectable gain under hourly block-bootstrapped CIs, while sustained fraud bursts remain the primary operational weakness.
+> **Core Finding:** Regularized 29D XGBoost reaches **~0.77 pooled OOT PR-AUC** (`0.7689` at seed 42; `0.7742 ± 0.0041` across 5 seeds) and **79.4% recall** at a `0.20%` review budget. Extra features, aggressive hyperparameter tuning, amount weighting, and ensembling add no detectable gain under hourly block-bootstrapped CIs, while sustained fraud bursts remain the primary operational weakness.
 
 ---
 
@@ -12,8 +12,8 @@ Evaluated across 3 disjoint chronological OOT windows (`[60%, 73%]`, `[73%, 86%]
 
 | Model (29D: `Amount` + `V1–V28`) | Pooled OOT PR-AUC | Recall @ 0.20% Budget | Precision @ 0.20% | Dollar Recall @ 0.20% |
 | :--- | :---: | :---: | :---: | :---: |
-| **Default XGBoost 29D** | `0.7762` | ~78% | ~45% | `64.4%` |
-| **Regularized XGBoost 29D (Primary)** | `0.7689` *(5-seed: `0.7742 ± 0.0041`)* | `78.6%` | `45.6%` | `64.4%` |
+| **Default XGBoost 29D** | `0.7762` | 79.4% | 46.0% | `64.4%` |
+| **Regularized XGBoost 29D (Primary)** | `0.7689` *(5-seed: `0.7742 ± 0.0041`)* | `77.9%` | `45.1%` | `64.4%` |
 | **Logistic Regression 29D** | `0.7358` | — | — | — |
 | **LightGBM 29D** | `0.7302` | — | — | — |
 | **Log-Amount-Weighted XGB 29D (`1–3×`)** | `0.7613` `[0.6785, 0.8268]` | `77.1%` | `44.7%` | `64.4%` |
@@ -74,14 +74,14 @@ Evaluated in release `v2.1.0` (`4d7ec75`, merged to `main`) using the same stric
 
 ---
 
-## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.3.6`)
+## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.3.7`)
 
-Full `v2.1` methodology and cross-dataset audit are in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (`v2.1.0`, commit `4d7ec75`; note that the report predates the `v2.3.x` conformal/uncertainty fields in `predictor.py`). All Tasks 2, 3, 4, and 7 artifacts are reproducible from `src/ml/v2_2_*.py` on deduplicated 29D chronological OOT ULB (`v2.3.6`).
+Full `v2.1` methodology and cross-dataset audit are in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (`v2.1.0`, commit `4d7ec75`; note that the report predates the `v2.3.x` conformal/uncertainty fields in `predictor.py`). All Tasks 2, 3, 4, and 7 artifacts are reproducible from `src/ml/v2_2_*.py` on deduplicated 29D chronological OOT ULB (`v2.3.7`).
 
 ### 1. Model Benchmarking & Statistical Validation (Tasks 2 & 3 — `src/ml/v2_2_benchmark_and_stats.py`)
 * **Protocol:** 10 expanding chronological OOT windows (`[50%, 100%]`, 0.20% budget) instead of random k-fold CV to prevent future-to-past burst leakage. Stochastic models (RF, XGBoost, MLP) are averaged across **5 seeds** (`{7, 21, 42, 84, 128}`); **all 5 models** receive post-hoc Isotonic calibration on the preceding 10% split before Brier comparison.
 * **5-Model PR-AUC (window-level 95% bootstrap CIs):** RF `0.7805` (`[0.6980, 0.8482]`), XGBoost `0.7682` (`[0.6881, 0.8360]`), MLP `0.7663` (`[0.6864, 0.8327]`), LR `0.7613` (`[0.6657, 0.8351]`), SVM (RBF, 15k legit subsample) `0.2535` (`[0.1912, 0.3239]`).
-* **Calibrated Brier & Latency:** Post-Isotonic Brier: RF `0.000505`, XGBoost `0.000526` (raw `0.004627`), MLP `0.000543`, LR `0.000544` (raw `0.028812`), SVM `0.001489`. Single-request latency: XGBoost `0.1411 ms (`n_jobs=1`)` (`0.00049 ms/txn` batch) beats RF (`6.1927 ms (`n_jobs=1`)`) by **43.9x** and outperforms MLP (`0.2570 ms`) and LR (`0.4052 ms`) in the same `n_jobs=1` harness.
+* **Calibrated Brier & Latency:** Post-Isotonic Brier: RF `0.000505`, XGBoost `0.000526` (raw `0.004627`), MLP `0.000543`, LR `0.000544` (raw `0.028812`), SVM `0.001489`. Single-request latency: XGBoost `0.1411 ms (`n_jobs=1`)` (`0.00021 ms/txn` batch) beats RF (`6.1927 ms (`n_jobs=1`)`) by **43.9x** and outperforms MLP (`0.2570 ms`) and LR (`0.4052 ms`) in the same `n_jobs=1` harness.
 * **Stats:** Friedman omnibus ($df=4$, 10 window seed means): $\chi^2 = 21.28, p = 0.0002787$. Pairwise Wilcoxon + Holm: XGBoost beats SVM ($p_{\text{adj}}=0.0078, \delta=1.00$) and is **no detectable difference across 10 windows** with RF ($p_{\text{adj}}=0.826$), MLP ($p_{\text{adj}}=1.000$), and LR ($p_{\text{adj}}=1.000$). XGBoost is retained for its 43.9x latency edge over RF, calibrated parity, native class-imbalance handling, and production consistency (note: omnibus significance is driven by subsampled SVM).
 
 ### 2. Uncertainty Quantification & Serving Integration (Task 4 — `src/ml/v2_2_conformal_and_ensemble.py` & `src/ml/predictor.py`)
@@ -95,7 +95,7 @@ Full `v2.1` methodology and cross-dataset audit are in [`riskpulse_technical_rep
   | Shipped Canonical Bundle (`riskpulse-29d-v2.0-canonical`) | 220 | 3 | 0.1023 | Tuned (`min_child_weight=11.23`), trained `[0%, 70%]`, Isotonic `[70%, 85%]` |
   | Benchmark & Conformal Scripts (`v2_2_*.py`) | 220 | 3 | 0.0500 | Standardized multi-window config (`subsample=0.8`, `colsample_bytree=0.8`) |
   | `v2.1` Technical Report (`riskpulse_technical_report_v2.pdf`) | 200 | 4 | 0.0500 | Earlier cross-dataset ULB/IEEE-CIS audit baseline (`4d7ec75`) |
-- **Statistical Note (`artifacts/friedman_summary.json`):** 5-model Friedman omnibus test (all models, `df=4`): $\chi^2 = 21.2800$, $p = 0.000279$; **4-model Friedman excluding SVM (`df=3`): $\chi^2 = 1.9200$, $p = 0.589176$**, confirming no detectable PR-AUC difference among XGBoost, RF, LR, and MLP across 10 windows.
+- **Statistical Note (`artifacts/friedman_summary.json`):** 5-model Friedman omnibus test (all models, `df=4`): $\chi^2 = 21.2800$, $p = 0.000279$; **4-model Friedman excluding SVM (`df=3`): $\chi^2 = 1.9200$, $p = 0.589176$**, consistent with no detectable PR-AUC difference among XGBoost, RF, LR, and MLP across 10 windows.
 
 ### 3. Latent Space Projections (Task 7 — `src/ml/v2_2_latent_projections.py`)
 * **Setup & Disclosure (`artifacts/figures/pca_tsne_umap.png`):** Stratified OOT subsample ($N=2,744$) scaled with `log1p(Amount) + RobustScaler` (with PCA `PC1` clipped at the 1st–99th percentile and the clipped outlier count labeled in the panel title, leaving `PC2` uncropped), colored by a separate single-split `[50%, 60%]` conformal calibration (`0.101%` OOT review rate vs. Task 4's `13.293%` 3-window pooled rate and `1.801%` served rate). Both frauds (`4.77%` vs `0.12%` OOT) and conformal review cases (`4.19%` vs `0.10%` OOT) are oversampled for visibility.
