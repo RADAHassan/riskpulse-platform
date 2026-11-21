@@ -1,5 +1,5 @@
 {
-  "method": "Mondrian (class-conditional) split-conformal prediction + 5-seed calibrated XGBoost ensemble",
+  "method": "Mondrian (class-conditional) split-conformal prediction + 5-seed calibrated XGBoost seed variance",
   "nonconformity_score": "1 - p_cal(true_class)",
   "seeds": [
     7,
@@ -12,53 +12,61 @@
     "legit_class_0": 0.995,
     "fraud_class_1": 0.85
   },
+  "serving_quantiles": {
+    "source_window": "W3 [86%-100%]",
+    "q_legit": 0.00507,
+    "q_fraud": 0.88247
+  },
   "pooled_oot": {
     "total_txns": 113491,
     "total_frauds": 131,
-    "empirical_coverage_overall": 0.9945,
-    "empirical_coverage_legit": 0.9947,
+    "empirical_coverage_overall": 0.9956,
+    "empirical_coverage_legit": 0.9958,
     "empirical_coverage_fraud": 0.8168,
-    "total_human_reviews": 1020,
-    "human_review_rate_pct": 0.899,
-    "ensemble_std_legit": 0.00021,
-    "ensemble_std_fraud": 0.02884,
-    "ensemble_std_review_cases": 0.00539
+    "total_human_reviews": 1057,
+    "human_review_rate_pct": 0.931,
+    "seed_variance_std_legit": 0.00021,
+    "seed_variance_std_fraud": 0.02884,
+    "seed_variance_std_review_cases": 0.00519
   },
   "windows": [
     {
       "window": "W1 [60%-73%]",
+      "n_cal_frauds": 80,
       "n_test": 36884,
-      "n_frauds": 33,
+      "n_test_frauds": 33,
       "q_legit": 0.00963,
       "q_fraud": 0.88148,
-      "empirical_coverage_overall": 0.9946,
-      "empirical_coverage_legit": 0.9948,
+      "empirical_coverage_overall": 0.9957,
+      "empirical_coverage_legit": 0.996,
       "empirical_coverage_fraud": 0.7576,
-      "human_review_count": 165,
-      "human_review_rate_pct": 0.447,
-      "ensemble_std_legit": 0.0003,
-      "ensemble_std_fraud": 0.06013,
-      "ensemble_std_review_cases": 0.01213
+      "human_review_count": 122,
+      "human_review_rate_pct": 0.331,
+      "seed_variance_std_legit": 0.0003,
+      "seed_variance_std_fraud": 0.06013,
+      "seed_variance_std_review_cases": 0.01557
     },
     {
       "window": "W2 [73%-86%]",
+      "n_cal_frauds": 29,
       "n_test": 36885,
-      "n_frauds": 53,
+      "n_test_frauds": 53,
       "q_legit": 0.00439,
       "q_fraud": 0.9981,
-      "empirical_coverage_overall": 0.9937,
-      "empirical_coverage_legit": 0.9938,
+      "empirical_coverage_overall": 0.9959,
+      "empirical_coverage_legit": 0.996,
       "empirical_coverage_fraud": 0.9434,
-      "human_review_count": 704,
-      "human_review_rate_pct": 1.909,
-      "ensemble_std_legit": 0.00013,
-      "ensemble_std_fraud": 0.02474,
-      "ensemble_std_review_cases": 0.00068
+      "human_review_count": 784,
+      "human_review_rate_pct": 2.126,
+      "seed_variance_std_legit": 0.00013,
+      "seed_variance_std_fraud": 0.02474,
+      "seed_variance_std_review_cases": 0.00073
     },
     {
       "window": "W3 [86%-100%]",
+      "n_cal_frauds": 43,
       "n_test": 39722,
-      "n_frauds": 45,
+      "n_test_frauds": 45,
       "q_legit": 0.00507,
       "q_fraud": 0.88247,
       "empirical_coverage_overall": 0.9952,
@@ -66,9 +74,14 @@
       "empirical_coverage_fraud": 0.7111,
       "human_review_count": 151,
       "human_review_rate_pct": 0.38,
-      "ensemble_std_legit": 0.0002,
-      "ensemble_std_fraud": 0.01071,
-      "ensemble_std_review_cases": 0.01998
+      "seed_variance_std_legit": 0.0002,
+      "seed_variance_std_fraud": 0.01071,
+      "seed_variance_std_review_cases": 0.01998
     }
+  ],
+  "methodological_notes": [
+    "Fraud empirical coverage (81.7% vs 85.0% target) reflects temporal drift breaking exchangeability and small per-window calibration fraud counts (n_cal_frauds).",
+    "The 5-seed XGBoost spread measures seed variance rather than full structural epistemic uncertainty.",
+    "serving_quantiles (q_legit, q_fraud) are loaded directly by src/ml/predictor.py to expose conformal_set, conformal_review_flag, and uncertainty_score."
   ]
 }

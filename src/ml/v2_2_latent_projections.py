@@ -1,9 +1,10 @@
 """
-RiskPulse v2.2 — Task 7: Reproducible Latent Space Projections (PCA, t-SNE, UMAP)
+RiskPulse v2.3 — Task 7: Reproducible Latent Space Projections (PCA, t-SNE, UMAP)
 Computes 2D embeddings on a stratified subsample of the deduplicated 29D OOT test set
-([60%, 100%]), evaluates Trustworthiness and Silhouette scores, and exports:
-  - artifacts/latent_projections.json
-  - artifacts/figures/pca_tsne_umap.png
+([60%, 100%]) using log1p(Amount) + RobustScaler to prevent outlier collapse, aligns
+uncertainty highlighting with Task 4's Mondrian conformal review flag, and exports:
+- artifacts/latent_projections.json
+- artifacts/figures/pca_tsne_umap.png
 """
 import json
 import warnings
@@ -16,7 +17,7 @@ from sklearn.decomposition import PCA
 from sklearn.isotonic import IsotonicRegression
 from sklearn.manifold import TSNE, trustworthiness
 from sklearn.metrics import silhouette_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 import umap
 import xgboost as xgb
 
@@ -24,13 +25,23 @@ warnings.filterwarnings("ignore")
 
 SEED = 42
 N_LEGIT_SUBSAMPLE = 2500
+ALPHA_LEGIT = 0.005
+ALPHA_FRAUD = 0.150
+
+
+def conformal_quantile(scores, alpha):
+    n = len(scores)
+    if n == 0:
+        return 1.0
+    level = min(1.0, np.ceil((n + 1) * (1.0 - alpha)) / n)
+    return float(np.quantile(scores, level, method="higher"))
 
 
 def main():
     Path("artifacts/figures").mkdir(parents=True, exist_ok=True)
     df = pd.read_csv("data/creditcard.csv").drop_duplicates().sort_values("Time").reset_index(drop=True)
     feature_cols = ["Amount"] + [f"V{i}" for i in range(1, 29)]
-    X_all = df[feature_cols].values
+    X_all = df[feature_cols].values.copy()
     y_all = df["Class"].values
     n = len(df)
 
@@ -53,29 +64,43 @@ def main():
         n_jobs=-1,
     )
     model.fit(X_tr, y_tr)
-    iso = IsotonicRegression(out_of_bounds="clip").fit(model.predict_proba(X_cal)[:, 1], y_cal)
-    p_oot = iso.predict(model.predict_proba(X_oot)[:, 1])
+    p_cal = IsotonicRegression(out_of_bounds="clip").fit(model.predict_proba(X_cal)[:, 1], y_cal)
+    cal_probs = p_cal.predict(model.predict_proba(X_cal)[:, 1])
+    p_oot = p_cal.predict(model.predict_proba(X_oot)[:, 1])
 
-    # Two-tier uncertainty band: uncertain cases routed to manual review (0.05 <= P_cal < 0.80)
-    is_uncertain_oot = (p_oot >= 0.05) & (p_oot < 0.80)
+    # Task 4 Mondrian conformal review flag (calibrated strictly on [50%, 60%])
+    q_legit = conformal_quantile(cal_probs[y_cal == 0], ALPHA_LEGIT)
+    q_fraud = conformal_quantile(1.0 - cal_probs[y_cal == 1], ALPHA_FRAUD)
+    inc_0 = p_oot <= q_legit
+    inc_1 = (1.0 - p_oot) <= q_fraud
+    is_review_oot = (inc_0.astype(int) + inc_1.astype(int)) != 1
 
-    # Stratified subsample for tractable t-SNE / UMAP visualization:
-    # Keep ALL OOT frauds + ALL uncertain boundary cases + 2,500 random legitimate cases
+    # Stratified subsample: ALL OOT frauds + ALL conformal review cases + 2,500 random clear legits
     rng = np.random.default_rng(SEED)
     fraud_idx = np.where(y_oot == 1)[0]
-    uncert_legit_idx = np.where((y_oot == 0) & is_uncertain_oot)[0]
-    clear_legit_idx = np.where((y_oot == 0) & (~is_uncertain_oot))[0]
+    review_legit_idx = np.where((y_oot == 0) & is_review_oot)[0]
+    clear_legit_idx = np.where((y_oot == 0) & (~is_review_oot))[0]
     sampled_legit = rng.choice(clear_legit_idx, size=min(N_LEGIT_SUBSAMPLE, len(clear_legit_idx)), replace=False)
 
-    sub_idx = np.unique(np.concatenate([fraud_idx, uncert_legit_idx, sampled_legit]))
-    X_sub = StandardScaler().fit_transform(X_oot[sub_idx])
+    sub_idx = np.unique(np.concatenate([fraud_idx, review_legit_idx, sampled_legit]))
+    X_sub_raw = X_oot[sub_idx].copy()
+    X_sub_raw[:, 0] = np.log1p(np.maximum(X_sub_raw[:, 0], 0.0))  # log1p(Amount) to prevent outlier squash
+    X_sub = RobustScaler().fit_transform(X_sub_raw)
+
     y_sub = y_oot[sub_idx]
     p_sub = p_oot[sub_idx]
-    u_sub = is_uncertain_oot[sub_idx]
+    r_sub = is_review_oot[sub_idx]
 
     true_prev_pct = float(y_oot.mean() * 100.0)
     sub_prev_pct = float(y_sub.mean() * 100.0)
-    print(f"Computing PCA, t-SNE, UMAP on N={len(sub_idx):,} OOT subsample ({int(y_sub.sum())} frauds, {sub_prev_pct:.2f}% vs {true_prev_pct:.2f}% true OOT)...")
+    true_rev_pct = float(is_review_oot.mean() * 100.0)
+    sub_rev_pct = float(r_sub.mean() * 100.0)
+
+    print(
+        f"Computing PCA, t-SNE, UMAP on N={len(sub_idx):,} OOT subsample "
+        f"(frauds={int(y_sub.sum())}: {sub_prev_pct:.2f}% vs {true_prev_pct:.2f}% true; "
+        f"conformal review={int(r_sub.sum())}: {sub_rev_pct:.2f}% vs {true_rev_pct:.2f}% true)..."
+    )
 
     pca = PCA(n_components=2, random_state=SEED)
     emb_pca = pca.fit_transform(X_sub)
@@ -86,7 +111,6 @@ def main():
     reducer = umap.UMAP(n_components=2, n_neighbors=15, min_dist=0.1, random_state=SEED)
     emb_umap = reducer.fit_transform(X_sub)
 
-    # Quantitative embedding quality metrics
     metrics = {}
     for name, emb in [("pca", emb_pca), ("tsne", emb_tsne), ("umap", emb_umap)]:
         tw = float(trustworthiness(X_sub, emb, n_neighbors=15))
@@ -97,14 +121,13 @@ def main():
         }
     metrics["pca"]["explained_variance_ratio"] = [round(float(v), 4) for v in pca.explained_variance_ratio_]
 
-    # Save JSON artifact
     records = []
     for i in range(len(sub_idx)):
         records.append({
             "oot_index": int(sub_idx[i]),
             "true_label": int(y_sub[i]),
             "fraud_probability": round(float(p_sub[i]), 5),
-            "is_uncertain": bool(u_sub[i]),
+            "conformal_review_flag": bool(r_sub[i]),
             "pca_x": round(float(emb_pca[i, 0]), 4),
             "pca_y": round(float(emb_pca[i, 1]), 4),
             "tsne_x": round(float(emb_tsne[i, 0]), 4),
@@ -116,13 +139,16 @@ def main():
     out = {
         "metadata": {
             "seed": SEED,
+            "scaling": "log1p(Amount) + RobustScaler across 29D features",
             "oot_total_n": int(len(y_oot)),
             "oot_true_fraud_prevalence_pct": round(true_prev_pct, 3),
+            "oot_true_conformal_review_pct": round(true_rev_pct, 3),
             "subsample_n": int(len(sub_idx)),
             "subsample_frauds": int(y_sub.sum()),
-            "subsample_uncertain": int(u_sub.sum()),
+            "subsample_conformal_reviews": int(r_sub.sum()),
             "subsample_fraud_prevalence_pct": round(sub_prev_pct, 2),
-            "uncertainty_band": [0.05, 0.80],
+            "subsample_conformal_review_pct": round(sub_rev_pct, 2),
+            "conformal_quantiles": {"q_legit": round(q_legit, 5), "q_fraud": round(q_fraud, 5)},
         },
         "quality_metrics": metrics,
         "points": records,
@@ -130,22 +156,24 @@ def main():
     with open("artifacts/latent_projections.json", "w") as f:
         json.dump(out, f, indent=2)
 
-    # Plot 3-panel figure with quantitative metrics & subsample disclosure
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5.2), dpi=150)
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5.4), dpi=150)
     panels = [
-        (emb_pca, f"PCA (Trust={metrics['pca']['trustworthiness_k15']:.3f}, Sil={metrics['pca']['silhouette_fraud_vs_legit']:.3f})", "PC1", "PC2"),
-        (emb_tsne, f"t-SNE (Trust={metrics['tsne']['trustworthiness_k15']:.3f}, Sil={metrics['tsne']['silhouette_fraud_vs_legit']:.3f})", "t-SNE 1", "t-SNE 2"),
-        (emb_umap, f"UMAP (Trust={metrics['umap']['trustworthiness_k15']:.3f}, Sil={metrics['umap']['silhouette_fraud_vs_legit']:.3f})", "UMAP 1", "UMAP 2"),
+        (emb_pca, f"PCA (Trust={metrics['pca']['trustworthiness_k15']:.3f}, Sil={metrics['pca']['silhouette_fraud_vs_legit']:.3f})", "PC1", "PC2", True),
+        (emb_tsne, f"t-SNE (Trust={metrics['tsne']['trustworthiness_k15']:.3f}, Sil={metrics['tsne']['silhouette_fraud_vs_legit']:.3f})", "t-SNE 1", "t-SNE 2", False),
+        (emb_umap, f"UMAP (Trust={metrics['umap']['trustworthiness_k15']:.3f}, Sil={metrics['umap']['silhouette_fraud_vs_legit']:.3f})", "UMAP 1", "UMAP 2", False),
     ]
 
-    legit_m = (y_sub == 0) & (~u_sub)
-    fraud_m = (y_sub == 1) & (~u_sub)
-    uncert_m = u_sub
+    legit_m = (y_sub == 0) & (~r_sub)
+    fraud_m = (y_sub == 1) & (~r_sub)
+    rev_m = r_sub
 
-    for ax, (emb, title, xl, yl) in zip(axes, panels):
+    for ax, (emb, title, xl, yl, clip_axes) in zip(axes, panels):
         ax.scatter(emb[legit_m, 0], emb[legit_m, 1], c="#94a3b8", s=8, alpha=0.35, label="Legitimate")
         ax.scatter(emb[fraud_m, 0], emb[fraud_m, 1], c="#dc2626", s=18, alpha=0.85, label="Fraud")
-        ax.scatter(emb[uncert_m, 0], emb[uncert_m, 1], c="#f59e0b", s=26, marker="^", edgecolor="black", linewidth=0.4, label="Uncertain (0.05 ≤ P < 0.80)")
+        ax.scatter(emb[rev_m, 0], emb[rev_m, 1], c="#f59e0b", s=26, marker="^", edgecolor="black", linewidth=0.4, label="Conformal Review (Task 4)")
+        if clip_axes:
+            ax.set_xlim(np.percentile(emb[:, 0], 0.5), np.percentile(emb[:, 0], 99.5))
+            ax.set_ylim(np.percentile(emb[:, 1], 0.5), np.percentile(emb[:, 1], 99.5))
         ax.set_title(title, fontsize=10.5, fontweight="bold")
         ax.set_xlabel(xl)
         ax.set_ylabel(yl)
@@ -154,8 +182,9 @@ def main():
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=3, frameon=False, fontsize=10)
     fig.suptitle(
-        f"29D OOT Latent Projections — Stratified Subsample (N={len(sub_idx):,}; {int(y_sub.sum())} frauds = {sub_prev_pct:.1f}% plotted vs. {true_prev_pct:.2f}% true OOT)",
-        fontsize=12,
+        f"29D OOT Latent Projections (log1p + RobustScaler, N={len(sub_idx):,}) — "
+        f"Frauds: {sub_prev_pct:.1f}% vs {true_prev_pct:.2f}% OOT | Conformal Reviews: {sub_rev_pct:.1f}% vs {true_rev_pct:.2f}% OOT",
+        fontsize=11,
         fontweight="bold",
         y=0.98,
     )

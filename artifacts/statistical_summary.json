@@ -1,8 +1,21 @@
 {
-  "protocol": "10 expanding chronological OOT windows ([50%, 100%] of deduplicated 29D ULB)",
+  "protocol": "10 expanding chronological OOT windows ([50%, 100%] of deduplicated 29D ULB) with 10% pre-window Isotonic calibration",
+  "seeds_stochastic_models": [
+    7,
+    21,
+    42,
+    84,
+    128
+  ],
+  "stochastic_models": [
+    "MLP",
+    "Random Forest",
+    "XGBoost"
+  ],
   "alert_budget_rate": 0.002,
+  "ci_method": "2,000-replicate bootstrap over the 10 OOT window means (window-level CI, not transaction-level)",
   "friedman_omnibus": {
-    "metric": "PR-AUC",
+    "metric": "PR-AUC (window-level seed mean)",
     "models": [
       "Logistic Regression",
       "Random Forest",
@@ -13,41 +26,43 @@
     "df": 4,
     "n_windows": 10,
     "mean_pr_auc": {
-      "Logistic Regression": 0.7722,
-      "Random Forest": 0.783,
-      "XGBoost": 0.7681,
-      "SVM (RBF)": 0.2932,
-      "MLP": 0.7623
+      "Logistic Regression": 0.7613,
+      "Random Forest": 0.7805,
+      "XGBoost": 0.7682,
+      "SVM (RBF)": 0.2535,
+      "MLP": 0.7663
     },
-    "ci_95_pr_auc": {
+    "window_ci_95_pr_auc": {
       "Logistic Regression": [
-        0.6765,
-        0.8412
+        0.6657,
+        0.8351
       ],
       "Random Forest": [
-        0.7016,
-        0.8495
+        0.698,
+        0.8482
       ],
       "XGBoost": [
-        0.6839,
-        0.8391
+        0.6881,
+        0.836
       ],
       "SVM (RBF)": [
-        0.2185,
-        0.3738
+        0.1912,
+        0.3239
       ],
       "MLP": [
-        0.6851,
-        0.8287
+        0.6864,
+        0.8327
       ]
     },
-    "friedman_chi2": 21.04,
-    "p_value": 0.0003109,
+    "friedman_chi2": 21.28,
+    "p_value": 0.0002787,
     "significant_alpha_0_05": true
   },
   "methodological_notes": [
-    "All 5 models evaluated on identical expanding chronological OOT windows (no random-split leakage).",
+    "Temporal expanding OOT windows are used instead of random k-fold CV to prevent future-to-past fraud burst leakage.",
+    "Stochastic models (Random Forest, XGBoost, MLP) are averaged across 5 seeds per window before Friedman/Wilcoxon testing to avoid inflating sample size with correlated seeds.",
+    "All 5 models receive post-hoc Isotonic Regression calibration on the preceding 10% chronological split prior to Brier Score comparison.",
     "SVM (RBF) trained on all window frauds + 15,000 randomly sampled legitimate transactions for O(N^2) tractability.",
-    "Precision, Recall, F1, and MCC are computed at the fixed 0.20% operational alert budget per window."
+    "Both batch-amortized latency (full window predict_proba) and single-transaction latency (200 sequential single-row calls) are reported."
   ]
 }

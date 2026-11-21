@@ -1,9 +1,9 @@
 """
-RiskPulse v2.2 — Task 4: Mondrian Split-Conformal Prediction & 5-Seed Ensemble Uncertainty
+RiskPulse v2.3 — Task 4: Mondrian Split-Conformal Prediction & 5-Seed Variance Uncertainty
 Evaluates on the 3 disjoint chronological OOT windows ([60%, 73%], [73%, 86%], [86%, 100%])
-of the deduplicated 29D ULB dataset.
+of the deduplicated 29D ULB dataset and exports serving quantiles for predictor.py.
 Outputs:
-  - artifacts/conformal.json
+- artifacts/conformal.json
 """
 import json
 import warnings
@@ -66,14 +66,13 @@ def main():
     window_results = []
     pooled_y, pooled_in_set, pooled_review, pooled_std = [], [], [], []
 
-    print("Running Mondrian Split-Conformal + 5-Seed Ensemble Uncertainty across 3 OOT windows...")
+    print("Running Mondrian Split-Conformal + 5-Seed Variance Uncertainty across 3 OOT windows...")
 
     for name, tr_end, cal_end, te_end in windows:
         X_tr, y_tr = X_all[:tr_end], y_all[:tr_end]
         X_cal, y_cal = X_all[tr_end:cal_end], y_all[tr_end:cal_end]
         X_te, y_te = X_all[cal_end:te_end], y_all[cal_end:te_end]
 
-        # 5-seed ensemble predictions (calibrated)
         cal_probs_seeds = []
         te_probs_seeds = []
         for s in SEEDS:
@@ -86,21 +85,19 @@ def main():
 
         p_cal = cal_probs_seeds.mean(axis=0)
         p_te = te_probs_seeds.mean(axis=0)
-        epistemic_std = te_probs_seeds.std(axis=0)
+        seed_std = te_probs_seeds.std(axis=0)
 
         # Mondrian nonconformity scores: s_i = 1 - p(true class)
-        s_cal_0 = 1.0 - (1.0 - p_cal[y_cal == 0])  # = p_cal for class 0
+        s_cal_0 = p_cal[y_cal == 0]
         s_cal_1 = 1.0 - p_cal[y_cal == 1]
 
         q0 = conformal_quantile(s_cal_0, ALPHA_LEGIT)
         q1 = conformal_quantile(s_cal_1, ALPHA_FRAUD)
 
-        # Prediction sets on test window
         include_0 = p_te <= q0
         include_1 = (1.0 - p_te) <= q1
         set_size = include_0.astype(int) + include_1.astype(int)
 
-        # Ambiguous (size == 2) or empty/OOD (size == 0) routed to Human Review
         review_mask = set_size != 1
         in_set = np.where(y_te == 1, include_1, include_0)
 
@@ -109,15 +106,15 @@ def main():
         cov_fraud = float(np.mean(in_set[y_te == 1])) if (y_te == 1).sum() > 0 else 0.0
         review_rate = float(np.mean(review_mask))
 
-        # Ensemble disagreement breakdown
-        std_legit = float(np.mean(epistemic_std[y_te == 0]))
-        std_fraud = float(np.mean(epistemic_std[y_te == 1]))
-        std_review = float(np.mean(epistemic_std[review_mask])) if review_mask.sum() > 0 else 0.0
+        std_legit = float(np.mean(seed_std[y_te == 0]))
+        std_fraud = float(np.mean(seed_std[y_te == 1]))
+        std_review = float(np.mean(seed_std[review_mask])) if review_mask.sum() > 0 else 0.0
 
         window_results.append({
             "window": name,
+            "n_cal_frauds": int(y_cal.sum()),
             "n_test": int(len(y_te)),
-            "n_frauds": int(y_te.sum()),
+            "n_test_frauds": int(y_te.sum()),
             "q_legit": round(q0, 5),
             "q_fraud": round(q1, 5),
             "empirical_coverage_overall": round(cov_overall, 4),
@@ -125,20 +122,20 @@ def main():
             "empirical_coverage_fraud": round(cov_fraud, 4),
             "human_review_count": int(review_mask.sum()),
             "human_review_rate_pct": round(review_rate * 100.0, 3),
-            "ensemble_std_legit": round(std_legit, 5),
-            "ensemble_std_fraud": round(std_fraud, 5),
-            "ensemble_std_review_cases": round(std_review, 5),
+            "seed_variance_std_legit": round(std_legit, 5),
+            "seed_variance_std_fraud": round(std_fraud, 5),
+            "seed_variance_std_review_cases": round(std_review, 5),
         })
 
         pooled_y.append(y_te)
         pooled_in_set.append(in_set)
         pooled_review.append(review_mask)
-        pooled_std.append(epistemic_std)
+        pooled_std.append(seed_std)
 
         print(
-            f"  {name} | Frauds: {int(y_te.sum()):3d} | Fraud Cov: {cov_fraud*100:5.1f}% | "
-            f"Legit Cov: {cov_legit*100:6.2f}% | Review Rate: {review_rate*100:5.2f}% | "
-            f"Ensemble Std (Review vs Legit): {std_review:.4f} vs {std_legit:.5f}"
+            f"  {name} | Cal Frauds: {int(y_cal.sum()):2d} | Test Frauds: {int(y_te.sum()):3d} | "
+            f"Fraud Cov: {cov_fraud*100:5.1f}% | Legit Cov: {cov_legit*100:6.2f}% | "
+            f"Review: {review_rate*100:5.2f}% | q_legit={q0:.5f}, q_fraud={q1:.5f}"
         )
 
     pooled_y = np.concatenate(pooled_y)
@@ -146,13 +143,19 @@ def main():
     pooled_review = np.concatenate(pooled_review)
     pooled_std = np.concatenate(pooled_std)
 
+    latest = window_results[-1]
     output = {
-        "method": "Mondrian (class-conditional) split-conformal prediction + 5-seed calibrated XGBoost ensemble",
+        "method": "Mondrian (class-conditional) split-conformal prediction + 5-seed calibrated XGBoost seed variance",
         "nonconformity_score": "1 - p_cal(true_class)",
         "seeds": SEEDS,
         "target_coverage": {
             "legit_class_0": 1.0 - ALPHA_LEGIT,
             "fraud_class_1": 1.0 - ALPHA_FRAUD,
+        },
+        "serving_quantiles": {
+            "source_window": latest["window"],
+            "q_legit": latest["q_legit"],
+            "q_fraud": latest["q_fraud"],
         },
         "pooled_oot": {
             "total_txns": int(len(pooled_y)),
@@ -162,18 +165,23 @@ def main():
             "empirical_coverage_fraud": round(float(np.mean(pooled_in_set[pooled_y == 1])), 4),
             "total_human_reviews": int(pooled_review.sum()),
             "human_review_rate_pct": round(float(np.mean(pooled_review) * 100.0), 3),
-            "ensemble_std_legit": round(float(np.mean(pooled_std[pooled_y == 0])), 5),
-            "ensemble_std_fraud": round(float(np.mean(pooled_std[pooled_y == 1])), 5),
-            "ensemble_std_review_cases": round(float(np.mean(pooled_std[pooled_review])), 5),
+            "seed_variance_std_legit": round(float(np.mean(pooled_std[pooled_y == 0])), 5),
+            "seed_variance_std_fraud": round(float(np.mean(pooled_std[pooled_y == 1])), 5),
+            "seed_variance_std_review_cases": round(float(np.mean(pooled_std[pooled_review])), 5),
         },
         "windows": window_results,
+        "methodological_notes": [
+            "Fraud empirical coverage (81.7% vs 85.0% target) reflects temporal drift breaking exchangeability and small per-window calibration fraud counts (n_cal_frauds).",
+            "The 5-seed XGBoost spread measures seed variance rather than full structural epistemic uncertainty.",
+            "serving_quantiles (q_legit, q_fraud) are loaded directly by src/ml/predictor.py to expose conformal_set, conformal_review_flag, and uncertainty_score.",
+        ],
     }
 
     with open("artifacts/conformal.json", "w") as f:
         json.dump(output, f, indent=2)
 
-    print("\n=== POOLED MONDRIAN CONFORMAL + ENSEMBLE SUMMARY ===")
-    print(json.dumps(output["pooled_oot"], indent=2))
+    print("\n=== SERVING QUANTILES EXPORTED ===")
+    print(json.dumps(output["serving_quantiles"], indent=2))
 
 
 if __name__ == "__main__":

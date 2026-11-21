@@ -1,3 +1,4 @@
+import json
 import joblib
 import numpy as np
 from collections import deque
@@ -10,6 +11,7 @@ class RiskPulseMLPredictor:
     def __init__(
         self,
         bundle_path: str = "artifacts/riskpulse_29d_bundle.joblib",
+        conformal_path: str = "artifacts/conformal.json",
         investigation_cost: float = 25.0,
     ):
         bundle = joblib.load(Path(bundle_path))
@@ -32,6 +34,18 @@ class RiskPulseMLPredictor:
         self.human_alerts_in_window = 0
         self.live_mse_buffer = deque(maxlen=self.W)
 
+        # Load Mondrian conformal serving quantiles (Task 4 integration)
+        self.q_legit = 0.05
+        self.q_fraud = 0.95
+        c_path = Path(conformal_path)
+        if c_path.exists():
+            with open(c_path, "r") as f:
+                c_data = json.load(f)
+            sq = c_data.get("serving_quantiles", {})
+            if "q_legit" in sq and "q_fraud" in sq:
+                self.q_legit = float(sq["q_legit"])
+                self.q_fraud = float(sq["q_fraud"])
+
     def score_transaction(self, amount: float, v_features: list[float]) -> dict:
         amt_scaled = self.scaler.transform(np.array([[amount]], dtype=float))[0, 0]
         x = np.array([[amt_scaled, *v_features]], dtype=float)
@@ -40,6 +54,15 @@ class RiskPulseMLPredictor:
         cal_prob = float(self.iso.predict([raw_score])[0])
         ae_mse = float(self.ae.transform(x)[0, 0])
         expected_loss = cal_prob * (float(amount) + self.investigation_cost)
+
+        # Mondrian conformal prediction set & boundary uncertainty score
+        conformal_set = []
+        if cal_prob <= self.q_legit:
+            conformal_set.append("LEGIT")
+        if (1.0 - cal_prob) <= self.q_fraud:
+            conformal_set.append("FRAUD")
+        conformal_review_flag = len(conformal_set) != 1
+        uncertainty_score = round(min(cal_prob, 1.0 - cal_prob) * 2.0, 6)
 
         tau_q = float(np.quantile(self.score_buffer, 1.0 - self.target_rate))
         flag_quantile = raw_score >= tau_q
@@ -81,4 +104,7 @@ class RiskPulseMLPredictor:
             ),
             "human_cap_reached": human_cap_reached,
             "ae_recon_mse": round(ae_mse, 6),
+            "uncertainty_score": uncertainty_score,
+            "conformal_set": conformal_set,
+            "conformal_review_flag": conformal_review_flag,
         }

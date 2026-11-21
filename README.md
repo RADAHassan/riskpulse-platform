@@ -74,25 +74,34 @@ Evaluated in release `v2.1.0` (`4d7ec75`, merged to `main`) using the same stric
 
 ---
 
-## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.2.0`)
+## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.3.0`)
 
-Full `v2.1` core methodology and cross-dataset audit are documented in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (`v2.1.0`, commit `4d7ec75`). All Tasks 2, 3, 4, and 7 artifacts below are fully reproducible from `src/ml/v2_2_*.py` on the deduplicated 29D chronological OOT ULB dataset (release `v2.2.0`).
+Full `v2.1` methodology and cross-dataset audit are in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (`v2.1.0`, commit `4d7ec75`). All Tasks 2, 3, 4, and 7 artifacts are reproducible from `src/ml/v2_2_*.py` on deduplicated 29D chronological OOT ULB (`v2.3.0`).
 
 ### 1. Model Benchmarking & Statistical Validation (Tasks 2 & 3 — `src/ml/v2_2_benchmark_and_stats.py`)
-* **5-Model Expanding Temporal Benchmark (`artifacts/benchmark_results.csv`):** Evaluated Logistic Regression, Random Forest, XGBoost, SVM (RBF), and MLP across **10 expanding chronological OOT windows** (`[50%, 100%]`, fixed 0.20% alert budget) on Precision, Recall, F1, ROC-AUC, PR-AUC (with 95% bootstrap CIs), MCC, Brier Score, and inference latency (`ms/txn`).
-  * Mean OOT PR-AUC: Random Forest `0.7830` (`[0.7016, 0.8495]`), Logistic Regression `0.7722` (`[0.6765, 0.8412]`), XGBoost `0.7681` (`[0.6839, 0.8391]`, fastest at `0.00027 ms/txn`), MLP `0.7623` (`[0.6851, 0.8287]`), SVM (RBF) `0.2932` (`[0.2185, 0.3738]`, trained on all window frauds + 15k legitimate subsample for $O(N^2)$ tractability).
-* **Friedman Omnibus Test (`artifacts/statistical_summary.json`):** Across all 5 models ($\text{df} = 4$, 10 expanding OOT windows), $\chi^2 = 21.04$, $p = 0.0003109$ (significant at $\alpha = 0.05$).
-* **Post-Hoc Tests (`artifacts/statistical_tests.csv`):** Pairwise Wilcoxon signed-rank tests with Holm-Bonferroni correction and Cliff's $\delta$ show XGBoost significantly outperforms SVM (RBF) ($p_{\text{adj}} = 0.0078$, $\delta = 0.96$), while differences vs. RF, LR, and MLP are non-significant ($p_{\text{adj}} \ge 0.826$).
+* **Protocol:** 10 expanding chronological OOT windows (`[50%, 100%]`, 0.20% budget) instead of random k-fold CV to prevent future-to-past burst leakage. Stochastic models (RF, XGBoost, MLP) are averaged across **5 seeds** (`{7, 21, 42, 84, 128}`); **all 5 models** receive post-hoc Isotonic calibration on the preceding 10% split before Brier comparison.
+* **5-Model PR-AUC (window-level 95% bootstrap CIs):** RF `0.7805` (`[0.6980, 0.8482]`), XGBoost `0.7682` (`[0.6881, 0.8360]`), MLP `0.7663` (`[0.6864, 0.8327]`), LR `0.7613` (`[0.6657, 0.8351]`), SVM (RBF, 15k legit subsample) `0.2535` (`[0.1912, 0.3239]`).
+* **Calibrated Brier & Latency:** Post-Isotonic Brier: RF `0.000505`, XGBoost `0.000526` (raw `0.004627`), MLP `0.000543`, LR `0.000544` (raw `0.028812`), SVM `0.001489`. Single-request latency: XGBoost `0.44 ms` (`0.00049 ms/txn` batch) — **72x faster per request** than RF (`32.04 ms` single; `0.00313 ms/txn` batch).
+* **Stats:** Friedman omnibus ($df=4$, 10 window seed means): $\chi^2 = 21.28, p = 0.0002787$. Pairwise Wilcoxon + Holm: XGBoost beats SVM ($p_{\text{adj}}=0.0078, \delta=1.00$) and is **statistically tied** with RF ($p_{\text{adj}}=0.826$), MLP ($p_{\text{adj}}=1.000$), and LR ($p_{\text{adj}}=1.000$). XGBoost is chosen for its 72x single-request latency advantage and calibrated parity, not accuracy superiority.
 
-### 2. Uncertainty Quantification & Blind-Spot Routing (Task 4 — `src/ml/v2_2_conformal_and_ensemble.py`)
-* **Mondrian Split-Conformal Prediction (`artifacts/conformal.json`):** Class-conditional nonconformity score $1 - p_{\text{cal}}(\text{true class})$ across 3 disjoint OOT windows ($N = 113,491$, 131 frauds) achieves **99.47%** legitimate coverage (target 99.5%) and **81.68%** fraud coverage (target 85.0%), routing **0.899%** (`1,020` cases) to human review.
-* **5-Seed Ensemble Disagreement (`seeds = {7, 21, 42, 84, 128}`):** Mean epistemic standard deviation is **25× higher** on review cases (`0.00539`) and **137× higher** on frauds (`0.02884`) than on legitimate transactions (`0.00021`).
-* **Held-Out Channel (`ProductCD='C'`, equal-volume `k_C = 1,371`, 38.1% ceiling):** Recall progresses from 34.4% (control) → 14.8% (held-out supervised, 0.0% under global budget) → 23.0% (unsupervised Isolation Forest, 60.2% precision).
+### 2. Uncertainty Quantification & Serving Integration (Task 4 — `src/ml/v2_2_conformal_and_ensemble.py` & `src/ml/predictor.py`)
+* **Mondrian Split-Conformal (`artifacts/conformal.json`):** Pooled OOT ($N=113,491$, 131 frauds) achieves **99.47% legit coverage** (target 99.5%) and **81.68% fraud coverage** (target 85.0%; W1 75.8%, W2 94.3%, W3 71.1%), routing **0.899%** (1,020 cases) to human review. The 3.3 pp fraud shortfall reflects temporal drift breaking exchangeability and small per-window calibration fraud counts (80, 29, 43).
+* **5-Seed Variance:** Mean seed-variance std is **25x higher** on review cases (`0.00539`) and **137x higher** on frauds (`0.02884`) than on legit (`0.00021`). This measures seed variance rather than full structural epistemic uncertainty.
+* **Serving Integration (`src/ml/predictor.py`):** Loads `serving_quantiles` (`q_legit=0.00507`, `q_fraud=0.88247` from W3) and returns `uncertainty_score`, `conformal_set`, and `conformal_review_flag` alongside all legacy keys.
 
 ### 3. Latent Space Projections (Task 7 — `src/ml/v2_2_latent_projections.py`)
-Reproducible PCA, t-SNE, and UMAP projections on a stratified OOT subsample (`artifacts/latent_projections.json`, $N = 2,725$; all 131 OOT frauds = 4.81% plotted vs. 0.12% true OOT prevalence):
-* **PCA:** Trustworthiness (`k=15`) `0.6614`, Silhouette `0.8080` (33.45% variance explained).
-* **t-SNE:** Trustworthiness (`k=15`) `0.9504`, Silhouette `0.2367`.
-* **UMAP:** Trustworthiness (`k=15`) `0.9251`, Silhouette `0.4619`.
+* **Setup & Disclosure (`artifacts/figures/pca_tsne_umap.png`):** Stratified OOT subsample ($N=2,744$) scaled with `log1p(Amount) + RobustScaler` to prevent outlier collapse, colored by Task 4's conformal review flag. Both frauds (`4.77%` vs `0.12%` OOT) and conformal review cases (`4.19%` vs `0.10%` OOT) are oversampled for visibility.
+* **Metrics & Interpretation:** PCA Trust `0.7064` / Sil `0.7710`; t-SNE Trust `0.9479` / Sil `0.2587`; UMAP Trust `0.9292` / Sil `0.3843`. Frauds sit embedded along legitimate neighborhood edges rather than forming an isolated global cluster, explaining the similar PR-AUC ceiling across models. In t-SNE/UMAP, conformal review cases concentrate along tight boundary manifolds, confirming uncertainty routing targets ambiguous cases. Because `V1–V28` are already PCA components, 2D PCA acts as a linear baseline.
 
-![PCA, t-SNE, and UMAP Latent Space Projections](artifacts/figures/pca_tsne_umap.png)
+### 4. How to Reproduce (Run from Repository Root)
+1. Place ULB dataset at `data/creditcard.csv` (gitignored).
+2. Run in order:
+```bash
+python src/ml/v2_2_benchmark_and_stats.py
+python src/ml/v2_2_conformal_and_ensemble.py
+python src/ml/v2_2_latent_projections.py
+```
+3. Verify `predictor.py`:
+```bash
+python -c "import json; from src.ml.predictor import RiskPulseMLPredictor; print(json.dumps(RiskPulseMLPredictor().score_transaction(149.99, [0.0]*28), indent=2))"
+```
