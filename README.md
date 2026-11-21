@@ -64,10 +64,30 @@ Online threshold adaptation using a `W = 20,000` label-free rolling-score quanti
 
 ## v2 Research Extensions (ULB Policy + IEEE-CIS Cross-Dataset Replication)
 
-Evaluated on branch `feat/v2-ieee-and-policy` using the same strict disjoint OOT protocol (`[60%, 73%]`, `[73%, 86%]`, `[86%, 100%]`), post-hoc Isotonic calibration, and block-bootstrapped 95% CIs:
+Evaluated in release `v2.1.0` (`4d7ec75`, merged to `main`) using the same strict disjoint OOT protocol (`[60%, 73%]`, `[73%, 86%]`, `[86%, 100%]`), post-hoc Isotonic calibration, and block-bootstrapped 95% CIs:
 
 * **IEEE-CIS Disjoint OOT Baseline (`N=590,537`, `20,663` frauds):** Pooled OOT PR-AUC **`0.4835`** (`[0.4576, 0.5087]`); Isotonic calibration repairs raw Brier Skill Score from **`-1.0234` → `+0.2991`**.
 * **Strictly Causal Entity & Velocity Features:** Both `card1+addr1` (1h/24h rolling windows, `0.4833`, `ΔPR-AUC = -0.0002`, 95% CI `[-0.0043, +0.0046]`) and `card1+addr1+D1` (`0.4818`) match the static baseline due to IEEE-CIS's pre-engineered `C1–C14` and `D1–D15` features.
 * **Expected-Loss Queue Ranking (`P_cal × (Amount + $25)`):** Flat on ULB (`64.4% → 64.4%`, 95% CI `[-2.7%, +6.5%]`), but lifts IEEE-CIS dollar recall by **`+20.4 pp`** at 2% budget (`27.2% → 47.6%`) and **`+16.2 pp`** at 5% budget (`49.9% → 66.1%`).
 * **Novel Attack Blind-Spot Test (IEEE-CIS):** Holding out `4,412` `ProductCD='C'` frauds from training drops OOT recall on that channel to **`0.0%` (`0/3,596`)** vs. **`45.2%` (`2,296/5,079`)** on seen channels at a 5% budget.
 * **Two-Tier Streaming Policy (`src/ml/predictor.py`):** Auto-declines (`P_cal >= 0.80`) bypass the human review cap (`88.5%` precision on IEEE-CIS), while the hard-capped human queue stays strictly under budget (`1.92%` vs. `2.0%` cap), delivering **`40.0%` combined recall** and **`53.9%` overall precision**.
+
+---
+
+## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.1.0`)
+
+Full methodology, paired confidence intervals, and limitation disclosures are documented in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (release `v2.1.0`, commit `4d7ec75`).
+
+### 1. Model Benchmarking & Statistical Validation (Tasks 2 & 3)
+* **5-Model Benchmark (`artifacts/benchmark_results.csv`):** Evaluated Logistic Regression, Random Forest, XGBoost, SVM (RBF), and MLP on Precision, Recall, F1, ROC-AUC, PR-AUC, MCC, Brier Score (calibration), and inference latency (ms).
+* **Friedman Omnibus Test (`artifacts/statistical_summary.json`):** 3×5 Repeated Stratified CV on PR-AUC confirmed significant differences across models ($\chi^2 = 41.0$, $p = 6.539 \times 10^{-9}$, $\alpha = 0.05$).
+* **Post-Hoc Tests (`artifacts/statistical_tests.csv`):** Pairwise Wilcoxon signed-rank tests with Holm-Bonferroni correction and Cliff's Delta effect sizes, supplemented by paired block-bootstrap 95% CIs on Out-Of-Time (OOT) splits.
+
+### 2. Uncertainty Quantification & Blind-Spot Routing (Task 4)
+* **Calibrated Two-Tier Policy (`src/ml/predictor.py`):** Isotonic-calibrated probabilities route high-confidence fraud to `AUTO_DECLINE` and uncertain cases to a capacity-capped `MANUAL_REVIEW` queue (`artifacts/conformal.json`: 0.13% human review rate, 83.8% fraud coverage).
+* **Held-Out Channel (`ProductCD='C'`, equal-volume `k_C = 1,371`, 38.1% ceiling):** Recall progression from 34.4% (control) → 14.8% (held-out supervised, 0.0% under global budget) → 23.0% (unsupervised Isolation Forest, 60.2% precision).
+
+### 3. Latent Space Projections (Task 7)
+PCA, t-SNE, and UMAP projections (`artifacts/latent_projections.json`, $N = 2,574$) showing fraud cluster separation and uncertainty-routed boundary cases:
+
+![PCA, t-SNE, and UMAP Latent Space Projections](artifacts/figures/pca_tsne_umap.png)
