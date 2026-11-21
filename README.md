@@ -113,3 +113,8 @@ python src/ml/v2_2_latent_projections.py
 ```bash
 python -c "import json; from src.ml.predictor import RiskPulseMLPredictor; print(json.dumps(RiskPulseMLPredictor().score_transaction(149.99, [0.0]*28), indent=2))"
 ```
+
+#### `v2.3.8` Verification Addenda (Full-Data `LinearSVC`, Shipped Params & Task 4 Error-Capture)
+- **Full-Data `LinearSVC` (10 OOT windows):** PR-AUC `0.5479` (`[0.3810, 0.6891]`), ROC-AUC `0.9251`, Prec/Rec/F1/MCC `@0.20%` = `0.4448 / 0.6440 / 0.4832 / 0.5116`, post-Isotonic Brier `0.000770` (`BSS = +0.3816`), single-txn latency `0.0977 ms`. Removes the 15k-subsample artifact while still significantly trailing XGBoost (Wilcoxon $p_{\text{adj}} = 0.0078$).
+- **Shipped XGBoost Params (`n_estimators=220, max_depth=3, lr=0.1023, min_child_weight=11.23`, 5 seeds):** PR-AUC `0.7599` (`[0.6755, 0.8324]`), ROC-AUC `0.9692`, Prec/Rec/F1/MCC `@0.20%` = `0.4683 / 0.7409 / 0.5263 / 0.5625`, post-Isotonic Brier `0.000539` (`BSS = +0.5920`), single-txn latency `0.1816 ms` (`34.1×` faster than RF). Updated 5-model Friedman: $\chi^2 = 23.3600, p = 0.000107$.
+- **Task 4 Error-Capture & Risk-Coverage (`[90%, 100%]` served OOT, `N=28,373`, `22` frauds, `0.20%` raw threshold `0.59033` → `16 TP, 41 FP, 6 FN`):** The served conformal review band (`511` txns, `1.801%`, `raw_score ∈ [0.04749, 0.23462]`) captures `0/41` FPs (`0.0%`) and `1/6` FNs (`16.7%`, `2.1%` total errors), confirming its role as a **monitoring signal** rather than an error router. Under selective abstention on `raw_score` uncertainty (`2*min(s, 1-s)`), abstaining on the top `1%` most uncertain transactions (`99.0%` coverage) cuts selective error rate by `65.6%` (`0.1657% → 0.0570%`; remaining `12 FP, 4 FN`), reaching `0.0274%` (`4 FP, 3 FN`) at `90.0%` coverage.
