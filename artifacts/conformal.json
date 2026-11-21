@@ -137,9 +137,9 @@
     }
   },
   "abstention_policy": {
-    "method": "threshold_proximity",
+    "method": "top_k_raw_score",
     "target_abstention_rate": 0.005,
     "calibration_operating_threshold": 0.724661,
-    "tau_dist": 0.402537
+    "thr_review": 0.322124
   }
 }
