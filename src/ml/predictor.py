@@ -59,9 +59,10 @@ class RiskPulseMLPredictor:
         expected_loss = cal_prob * (float(amount) + self.investigation_cost)
 
         conformal_set = []
-        if cal_prob <= self.q_legit:
+        # Mondrian split-conformal sets computed on continuous raw_score (avoids Isotonic step collapse)
+        if raw_score <= self.q_legit:
             conformal_set.append("LEGIT")
-        if (1.0 - cal_prob) <= self.q_fraud:
+        if (1.0 - raw_score) <= self.q_fraud:
             conformal_set.append("FRAUD")
         conformal_review_flag = len(conformal_set) != 1
 
