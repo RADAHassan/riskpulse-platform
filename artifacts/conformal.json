@@ -19,6 +19,16 @@
     "q_legit": 0.00962,
     "q_fraud": 0.9619
   },
+  "serving_oot_evaluation": {
+    "oot_block": "[86%-100%] deduplicated ULB",
+    "n_test": 39722,
+    "n_test_frauds": 45,
+    "empirical_coverage_legit": 0.9964,
+    "empirical_coverage_fraud": 0.7111,
+    "conformal_review_count": 17,
+    "conformal_review_rate_pct": 0.043,
+    "uncertainty_downgraded_from_auto_decline": 0
+  },
   "pooled_oot": {
     "total_txns": 113491,
     "total_frauds": 131,

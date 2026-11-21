@@ -13,6 +13,7 @@ class RiskPulseMLPredictor:
         bundle_path: str = "artifacts/riskpulse_29d_bundle.joblib",
         conformal_path: str = "artifacts/conformal.json",
         investigation_cost: float = 25.0,
+        uncertainty_review_threshold: float = 0.25,
     ):
         bundle = joblib.load(Path(bundle_path))
         self.version = bundle["model_version"]
@@ -26,6 +27,7 @@ class RiskPulseMLPredictor:
         self.target_rate = cfg["target_alert_rate"]
         self.guard_prob = cfg["auto_decline_prob_guard"]
         self.investigation_cost = float(cfg.get("investigation_cost", investigation_cost))
+        self.uncertainty_review_threshold = float(uncertainty_review_threshold)
         self.buffer_policy = "quarantine_guard_only"
         self.queue_policy = "two_tier_capped_human"
         self.max_human_alerts = max(1, int(self.W * self.target_rate))
@@ -34,7 +36,7 @@ class RiskPulseMLPredictor:
         self.human_alerts_in_window = 0
         self.live_mse_buffer = deque(maxlen=self.W)
 
-        # Load canonical-model Mondrian conformal quantiles (Task 4)
+        # Load canonical-model Mondrian conformal quantiles (reproduced by v2_2_conformal_and_ensemble.py)
         self.q_legit = 0.00962
         self.q_fraud = 0.9619
         c_path = Path(conformal_path)
@@ -53,14 +55,17 @@ class RiskPulseMLPredictor:
         ae_mse = float(self.ae.transform(x)[0, 0])
         expected_loss = cal_prob * (float(amount) + self.investigation_cost)
 
-        # Mondrian conformal prediction set & consistent uncertainty score
+        # 1) Mondrian split-conformal prediction set
         conformal_set = []
         if cal_prob <= self.q_legit:
             conformal_set.append("LEGIT")
         if (1.0 - cal_prob) <= self.q_fraud:
             conformal_set.append("FRAUD")
         conformal_review_flag = len(conformal_set) != 1
-        uncertainty_score = 1.0 if conformal_review_flag else 0.0
+
+        # 2) Continuous boundary uncertainty in [0, 1] (peaks at p = 0.50)
+        uncertainty_score = round(2.0 * min(cal_prob, 1.0 - cal_prob), 6)
+        high_uncertainty = uncertainty_score >= self.uncertainty_review_threshold
 
         tau_q = float(np.quantile(self.score_buffer, 1.0 - self.target_rate))
         flag_quantile = raw_score >= tau_q
@@ -68,14 +73,23 @@ class RiskPulseMLPredictor:
         human_cap_reached = self.human_alerts_in_window >= self.max_human_alerts
 
         # Uncertainty-aware two-tier policy:
-        # 1) High-confidence AUTO_DECLINE only when P_cal >= guard AND conformal set is certain.
-        # 2) Conformal-uncertain or quantile-flagged transactions route to capped MANUAL_REVIEW.
-        if flag_guard and not conformal_review_flag:
+        # 1) High-confidence AUTO_DECLINE when P_cal >= guard AND uncertainty < threshold.
+        # 2) Borderline AUTO_DECLINE (P_cal >= guard AND high_uncertainty) downgrades to MANUAL_REVIEW
+        #    if human capacity is available (fails safe to AUTO_DECLINE if cap is full).
+        # 3) Otherwise, high_uncertainty, conformal_review_flag, or quantile-flagged cases go to MANUAL_REVIEW.
+        if flag_guard and not high_uncertainty:
             decision = "AUTO_DECLINE"
             queued_human = 0
+        elif flag_guard and high_uncertainty:
+            if not human_cap_reached:
+                decision = "MANUAL_REVIEW"
+                queued_human = 1
+            else:
+                decision = "AUTO_DECLINE"
+                queued_human = 0
         else:
             self.score_buffer.append(raw_score)
-            if (conformal_review_flag or flag_quantile) and not human_cap_reached:
+            if (high_uncertainty or conformal_review_flag or flag_quantile) and not human_cap_reached:
                 decision = "MANUAL_REVIEW"
                 queued_human = 1
             else:

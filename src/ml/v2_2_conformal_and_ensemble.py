@@ -6,8 +6,12 @@ Outputs:
 - artifacts/conformal.json
 """
 import json
+import joblib
 import warnings
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import numpy as np
 import pandas as pd
@@ -143,7 +147,23 @@ def main():
     pooled_review = np.concatenate(pooled_review)
     pooled_std = np.concatenate(pooled_std)
 
-    latest = window_results[-1]
+    # Reproducibly calibrate & evaluate the served canonical bundle on [76%-86%] -> [86%-100%]
+    bundle = joblib.load("artifacts/riskpulse_29d_bundle.joblib")
+    c_start, c_end = int(0.76 * n), int(0.86 * n)
+    X_b_cal, y_b_cal = X_all[c_start:c_end].copy(), y_all[c_start:c_end]
+    X_b_oot, y_b_oot = X_all[c_end:].copy(), y_all[c_end:]
+    X_b_cal[:, 0] = bundle["scaler"].transform(X_b_cal[:, [0]]).ravel()
+    X_b_oot[:, 0] = bundle["scaler"].transform(X_b_oot[:, [0]]).ravel()
+    p_b_cal = bundle["isotonic_calibrator"].predict(bundle["xgb_model"].predict_proba(X_b_cal)[:, 1])
+    p_b_oot = bundle["isotonic_calibrator"].predict(bundle["xgb_model"].predict_proba(X_b_oot)[:, 1])
+    q0_srv = conformal_quantile(p_b_cal[y_b_cal == 0], ALPHA_LEGIT)
+    q1_srv = conformal_quantile(1.0 - p_b_cal[y_b_cal == 1], ALPHA_FRAUD)
+    inc0_srv, inc1_srv = p_b_oot <= q0_srv, (1.0 - p_b_oot) <= q1_srv
+    in_set_srv = np.where(y_b_oot == 1, inc1_srv, inc0_srv)
+    rev_srv = (inc0_srv.astype(int) + inc1_srv.astype(int)) != 1
+    unc_srv = 2.0 * np.minimum(p_b_oot, 1.0 - p_b_oot)
+    downgraded_srv = (p_b_oot >= bundle["policy_config"]["auto_decline_prob_guard"]) & (unc_srv >= 0.25)
+
     output = {
         "method": "Mondrian (class-conditional) split-conformal prediction + 5-seed calibrated XGBoost seed variance",
         "nonconformity_score": "1 - p_cal(true_class)",
@@ -153,9 +173,21 @@ def main():
             "fraud_class_1": 1.0 - ALPHA_FRAUD,
         },
         "serving_quantiles": {
-            "source_window": latest["window"],
-            "q_legit": latest["q_legit"],
-            "q_fraud": latest["q_fraud"],
+            "source_model": bundle["model_version"],
+            "calibration_block": "[76%-86%] deduplicated ULB",
+            "n_cal_frauds": int(y_b_cal.sum()),
+            "q_legit": round(q0_srv, 5),
+            "q_fraud": round(q1_srv, 5),
+        },
+        "serving_oot_evaluation": {
+            "oot_block": "[86%-100%] deduplicated ULB",
+            "n_test": int(len(y_b_oot)),
+            "n_test_frauds": int(y_b_oot.sum()),
+            "empirical_coverage_legit": round(float(np.mean(in_set_srv[y_b_oot == 0])), 4),
+            "empirical_coverage_fraud": round(float(np.mean(in_set_srv[y_b_oot == 1])), 4),
+            "conformal_review_count": int(rev_srv.sum()),
+            "conformal_review_rate_pct": round(float(np.mean(rev_srv) * 100.0), 3),
+            "uncertainty_downgraded_from_auto_decline": int(downgraded_srv.sum()),
         },
         "pooled_oot": {
             "total_txns": int(len(pooled_y)),

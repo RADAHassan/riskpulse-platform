@@ -157,8 +157,10 @@ def main():
         json.dump(out, f, indent=2)
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5.4), dpi=150)
+    x_lo, x_hi = np.percentile(emb_pca[:, 0], [1.0, 99.0])
+    n_x_clipped = int(((emb_pca[:, 0] < x_lo) | (emb_pca[:, 0] > x_hi)).sum())
     panels = [
-        (emb_pca, f"PCA (Trust={metrics['pca']['trustworthiness_k15']:.3f}, Sil={metrics['pca']['silhouette_fraud_vs_legit']:.3f})", "PC1", "PC2", False),
+        (emb_pca, f"PCA (Trust={metrics['pca']['trustworthiness_k15']:.3f}, Sil={metrics['pca']['silhouette_fraud_vs_legit']:.3f}; {n_x_clipped} x-outliers clipped)", "PC1 (1st-99th pct)", "PC2", True),
         (emb_tsne, f"t-SNE (Trust={metrics['tsne']['trustworthiness_k15']:.3f}, Sil={metrics['tsne']['silhouette_fraud_vs_legit']:.3f})", "t-SNE 1", "t-SNE 2", False),
         (emb_umap, f"UMAP (Trust={metrics['umap']['trustworthiness_k15']:.3f}, Sil={metrics['umap']['silhouette_fraud_vs_legit']:.3f})", "UMAP 1", "UMAP 2", False),
     ]
@@ -172,8 +174,7 @@ def main():
         ax.scatter(emb[fraud_m, 0], emb[fraud_m, 1], c="#dc2626", s=18, alpha=0.85, label="Fraud")
         ax.scatter(emb[rev_m, 0], emb[rev_m, 1], c="#f59e0b", s=26, marker="^", edgecolor="black", linewidth=0.4, label="Conformal Review (Task 4)")
         if clip_axes:
-            ax.set_xlim(np.percentile(emb[:, 0], 0.5), np.percentile(emb[:, 0], 99.5))
-            ax.set_ylim(np.percentile(emb[:, 1], 0.5), np.percentile(emb[:, 1], 99.5))
+            ax.set_xlim(x_lo, x_hi)
         ax.set_title(title, fontsize=10.5, fontweight="bold")
         ax.set_xlabel(xl)
         ax.set_ylabel(yl)
