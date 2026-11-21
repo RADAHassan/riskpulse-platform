@@ -10,3 +10,4 @@ data/*.csv
 .DS_Store
 .vscode/
 .idea/
+data/ieee-cis/
