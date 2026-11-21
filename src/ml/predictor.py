@@ -14,6 +14,7 @@ class RiskPulseMLPredictor:
         conformal_path: str = "artifacts/conformal.json",
         investigation_cost: float = 25.0,
         uncertainty_review_threshold: float = 0.25,
+        use_uncertainty_routing: bool = True,
     ):
         bundle = joblib.load(Path(bundle_path))
         self.version = bundle["model_version"]
@@ -28,6 +29,7 @@ class RiskPulseMLPredictor:
         self.guard_prob = cfg["auto_decline_prob_guard"]
         self.investigation_cost = float(cfg.get("investigation_cost", investigation_cost))
         self.uncertainty_review_threshold = float(uncertainty_review_threshold)
+        self.use_uncertainty_routing = bool(use_uncertainty_routing)
         self.buffer_policy = "quarantine_guard_only"
         self.queue_policy = "two_tier_capped_human"
         self.max_human_alerts = max(1, int(self.W * self.target_rate))
@@ -65,7 +67,8 @@ class RiskPulseMLPredictor:
 
         # 2) Continuous boundary uncertainty in [0, 1] (peaks at p = 0.50)
         uncertainty_score = round(2.0 * min(cal_prob, 1.0 - cal_prob), 6)
-        high_uncertainty = uncertainty_score >= self.uncertainty_review_threshold
+        high_uncertainty = self.use_uncertainty_routing and (uncertainty_score >= self.uncertainty_review_threshold)
+        conf_route = self.use_uncertainty_routing and conformal_review_flag
 
         tau_q = float(np.quantile(self.score_buffer, 1.0 - self.target_rate))
         flag_quantile = raw_score >= tau_q
@@ -89,7 +92,7 @@ class RiskPulseMLPredictor:
                 queued_human = 0
         else:
             self.score_buffer.append(raw_score)
-            if (high_uncertainty or conformal_review_flag or flag_quantile) and not human_cap_reached:
+            if (high_uncertainty or conf_route or flag_quantile) and not human_cap_reached:
                 decision = "MANUAL_REVIEW"
                 queued_human = 1
             else:
