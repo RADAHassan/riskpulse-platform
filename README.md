@@ -74,9 +74,9 @@ Evaluated in release `v2.1.0` (`4d7ec75`, merged to `main`) using the same stric
 
 ---
 
-## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.3.7`)
+## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.3.8`)
 
-Full `v2.1` methodology and cross-dataset audit are in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (`v2.1.0`, commit `4d7ec75`; note that the report predates the `v2.3.x` conformal/uncertainty fields in `predictor.py`). All Tasks 2, 3, 4, and 7 artifacts are reproducible from `src/ml/v2_2_*.py` on deduplicated 29D chronological OOT ULB (`v2.3.7`).
+Full `v2.1` methodology and cross-dataset audit are in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (`v2.1.0`, commit `4d7ec75`; note that the report predates the `v2.3.x` conformal/uncertainty fields in `predictor.py`). All Tasks 2, 3, 4, and 7 artifacts are reproducible from `src/ml/v2_2_*.py` on deduplicated 29D chronological OOT ULB (`v2.3.8`).
 
 ### 1. Model Benchmarking & Statistical Validation (Tasks 2 & 3 — `src/ml/v2_2_benchmark_and_stats.py`)
 * **Protocol:** 10 expanding chronological OOT windows (`[50%, 100%]`, 0.20% budget) instead of random k-fold CV to prevent future-to-past burst leakage. Stochastic models (RF, XGBoost, MLP) are averaged across **5 seeds** (`{7, 21, 42, 84, 128}`); **all 5 models** receive post-hoc Isotonic calibration on the preceding 10% split before Brier comparison.
