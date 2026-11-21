@@ -74,20 +74,25 @@ Evaluated in release `v2.1.0` (`4d7ec75`, merged to `main`) using the same stric
 
 ---
 
-## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.1.0`)
+## Machine Learning & Statistical Validation (Tasks 2, 3, 4, 7 — `v2.2.0`)
 
-Full methodology, paired confidence intervals, and limitation disclosures are documented in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (release `v2.1.0`, commit `4d7ec75`).
+Full `v2.1` core methodology and cross-dataset audit are documented in [`riskpulse_technical_report_v2.pdf`](riskpulse_technical_report_v2.pdf) (`v2.1.0`, commit `4d7ec75`). All Tasks 2, 3, 4, and 7 artifacts below are fully reproducible from `src/ml/v2_2_*.py` on the deduplicated 29D chronological OOT ULB dataset (release `v2.2.0`).
 
-### 1. Model Benchmarking & Statistical Validation (Tasks 2 & 3)
-* **5-Model Benchmark (`artifacts/benchmark_results.csv`):** Evaluated Logistic Regression, Random Forest, XGBoost, SVM (RBF), and MLP on Precision, Recall, F1, ROC-AUC, PR-AUC, MCC, Brier Score (calibration), and inference latency (ms).
-* **Friedman Omnibus Test (`artifacts/statistical_summary.json`):** 3×5 Repeated Stratified CV on PR-AUC confirmed significant differences across models ($\chi^2 = 41.0$, $p = 6.539 \times 10^{-9}$, $\alpha = 0.05$).
-* **Post-Hoc Tests (`artifacts/statistical_tests.csv`):** Pairwise Wilcoxon signed-rank tests with Holm-Bonferroni correction and Cliff's Delta effect sizes, supplemented by paired block-bootstrap 95% CIs on Out-Of-Time (OOT) splits.
+### 1. Model Benchmarking & Statistical Validation (Tasks 2 & 3 — `src/ml/v2_2_benchmark_and_stats.py`)
+* **5-Model Expanding Temporal Benchmark (`artifacts/benchmark_results.csv`):** Evaluated Logistic Regression, Random Forest, XGBoost, SVM (RBF), and MLP across **10 expanding chronological OOT windows** (`[50%, 100%]`, fixed 0.20% alert budget) on Precision, Recall, F1, ROC-AUC, PR-AUC (with 95% bootstrap CIs), MCC, Brier Score, and inference latency (`ms/txn`).
+  * Mean OOT PR-AUC: Random Forest `0.7830` (`[0.7016, 0.8495]`), Logistic Regression `0.7722` (`[0.6765, 0.8412]`), XGBoost `0.7681` (`[0.6839, 0.8391]`, fastest at `0.00027 ms/txn`), MLP `0.7623` (`[0.6851, 0.8287]`), SVM (RBF) `0.2932` (`[0.2185, 0.3738]`, trained on all window frauds + 15k legitimate subsample for $O(N^2)$ tractability).
+* **Friedman Omnibus Test (`artifacts/statistical_summary.json`):** Across all 5 models ($\text{df} = 4$, 10 expanding OOT windows), $\chi^2 = 21.04$, $p = 0.0003109$ (significant at $\alpha = 0.05$).
+* **Post-Hoc Tests (`artifacts/statistical_tests.csv`):** Pairwise Wilcoxon signed-rank tests with Holm-Bonferroni correction and Cliff's $\delta$ show XGBoost significantly outperforms SVM (RBF) ($p_{\text{adj}} = 0.0078$, $\delta = 0.96$), while differences vs. RF, LR, and MLP are non-significant ($p_{\text{adj}} \ge 0.826$).
 
-### 2. Uncertainty Quantification & Blind-Spot Routing (Task 4)
-* **Calibrated Two-Tier Policy (`src/ml/predictor.py`):** Isotonic-calibrated probabilities route high-confidence fraud to `AUTO_DECLINE` and uncertain cases to a capacity-capped `MANUAL_REVIEW` queue (`artifacts/conformal.json`: 0.13% human review rate, 83.8% fraud coverage).
-* **Held-Out Channel (`ProductCD='C'`, equal-volume `k_C = 1,371`, 38.1% ceiling):** Recall progression from 34.4% (control) → 14.8% (held-out supervised, 0.0% under global budget) → 23.0% (unsupervised Isolation Forest, 60.2% precision).
+### 2. Uncertainty Quantification & Blind-Spot Routing (Task 4 — `src/ml/v2_2_conformal_and_ensemble.py`)
+* **Mondrian Split-Conformal Prediction (`artifacts/conformal.json`):** Class-conditional nonconformity score $1 - p_{\text{cal}}(\text{true class})$ across 3 disjoint OOT windows ($N = 113,491$, 131 frauds) achieves **99.47%** legitimate coverage (target 99.5%) and **81.68%** fraud coverage (target 85.0%), routing **0.899%** (`1,020` cases) to human review.
+* **5-Seed Ensemble Disagreement (`seeds = {7, 21, 42, 84, 128}`):** Mean epistemic standard deviation is **25× higher** on review cases (`0.00539`) and **137× higher** on frauds (`0.02884`) than on legitimate transactions (`0.00021`).
+* **Held-Out Channel (`ProductCD='C'`, equal-volume `k_C = 1,371`, 38.1% ceiling):** Recall progresses from 34.4% (control) → 14.8% (held-out supervised, 0.0% under global budget) → 23.0% (unsupervised Isolation Forest, 60.2% precision).
 
-### 3. Latent Space Projections (Task 7)
-PCA, t-SNE, and UMAP projections (`artifacts/latent_projections.json`, $N = 2,574$) showing fraud cluster separation and uncertainty-routed boundary cases:
+### 3. Latent Space Projections (Task 7 — `src/ml/v2_2_latent_projections.py`)
+Reproducible PCA, t-SNE, and UMAP projections on a stratified OOT subsample (`artifacts/latent_projections.json`, $N = 2,725$; all 131 OOT frauds = 4.81% plotted vs. 0.12% true OOT prevalence):
+* **PCA:** Trustworthiness (`k=15`) `0.6614`, Silhouette `0.8080` (33.45% variance explained).
+* **t-SNE:** Trustworthiness (`k=15`) `0.9504`, Silhouette `0.2367`.
+* **UMAP:** Trustworthiness (`k=15`) `0.9251`, Silhouette `0.4619`.
 
 ![PCA, t-SNE, and UMAP Latent Space Projections](artifacts/figures/pca_tsne_umap.png)
