@@ -1,0 +1,11 @@
+riskpulse:
+  security:
+    service-key: test-service-key-0123456789
+    jwks-uri: http://localhost:1/unused
+  ml:
+    timeout-ms: 400
+    retry-attempts: 2
+    circuit:
+      window: 10
+      min-calls: 4
+      open-seconds: 60

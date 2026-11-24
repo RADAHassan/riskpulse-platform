@@ -1,0 +1,91 @@
+server:
+  port: 8080
+  shutdown: graceful
+  netty:
+    connection-timeout: 5s
+  http2:
+    enabled: false
+
+spring:
+  application:
+    name: api-gateway
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  codec:
+    max-in-memory-size: 1MB
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 12s
+          metrics:
+            enabled: true
+          default-filters:
+            - RemoveResponseHeader=Server
+            - RemoveResponseHeader=X-Powered-By
+            - AddResponseHeader=Cache-Control, no-store
+          routes:
+            - id: auth
+              uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**
+            - id: customers
+              uri: ${CUSTOMER_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/customers/**
+            - id: transactions
+              uri: ${TRANSACTION_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/transactions/**
+            - id: risk
+              uri: ${RISK_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/risk/**,/api/reviews/**
+            - id: notifications
+              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/notifications/**
+            - id: audit
+              uri: ${AUDIT_SERVICE_URL:http://localhost:8086}
+              predicates:
+                - Path=/api/audit/**
+            # ml-serving: read-only model views for analysts; /predict is NOT reachable from outside
+            - id: ml
+              uri: ${ML_SERVING_URL:http://localhost:8000}
+              predicates:
+                - Path=/api/ml/model/**,/api/ml/projections
+              filters:
+                - RewritePath=/api/ml/(?<segment>.*), /$\{segment}
+                - AddRequestHeader=X-Service-Key, ${SERVICE_KEY:not-configured}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        spring.cloud.gateway.requests: true
+
+riskpulse:
+  security:
+    issuer: ${JWT_ISSUER:riskpulse-auth}
+    jwks-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+  gateway:
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    max-request-bytes: ${MAX_REQUEST_BYTES:1048576}
+    trust-forwarded-for: ${TRUST_FORWARDED_FOR:false}
+    rate-limit:
+      ip-per-minute: ${RATE_LIMIT_IP_PER_MIN:300}
+      user-per-minute: ${RATE_LIMIT_USER_PER_MIN:600}
+      auth-per-minute: ${RATE_LIMIT_AUTH_PER_MIN:20}

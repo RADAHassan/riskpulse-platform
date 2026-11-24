@@ -1,0 +1,338 @@
+openapi: 3.0.3
+info:
+  title: RiskPulse public API
+  version: 1.0.0
+  description: |
+    Public API exposed by the RiskPulse API gateway. Every endpoint except login/refresh/logout requires a
+    Bearer JWT (RS256) issued by the auth service. Errors follow RFC 7807 (application/problem+json).
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: customers
+  - name: transactions
+  - name: reviews
+  - name: audit
+  - name: notifications
+  - name: model
+paths:
+  /api/auth/login:
+    post:
+      tags: [auth]
+      security: []
+      summary: Obtain an access token (15 min) and a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Tokens
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '423': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /api/auth/refresh:
+    post:
+      tags: [auth]
+      security: []
+      summary: Rotate the refresh token and get a new access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Tokens
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      security: []
+      summary: Revoke a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '204': { description: Revoked }
+  /api/auth/me:
+    get:
+      tags: [auth]
+      summary: Current user
+      responses:
+        '200': { description: User }
+        '401': { $ref: '#/components/responses/Problem' }
+  /api/customers:
+    get:
+      tags: [customers]
+      summary: List customers (ADMIN, ANALYST)
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Page of customers }
+        '403': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [customers]
+      summary: Create a customer (ADMIN, ANALYST)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerRequest' }
+      responses:
+        '201': { description: Created }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/customers/me:
+    get:
+      tags: [customers]
+      summary: The caller's own customer record (CUSTOMER)
+      responses:
+        '200': { description: Customer }
+  /api/customers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [customers]
+      summary: Get a customer (staff or owner)
+      responses:
+        '200': { description: Customer }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [customers]
+      summary: Update a customer (staff or owner)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerUpdate' }
+      responses:
+        '200': { description: Updated }
+        '403': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [customers]
+      summary: Delete a customer (ADMIN)
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/transactions:
+    get:
+      tags: [transactions]
+      summary: List transactions (staff: all, CUSTOMER: own)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [PENDING, APPROVED, DECLINED, UNDER_REVIEW, PENDING_RISK] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Page of transactions }
+    post:
+      tags: [transactions]
+      summary: Submit a transaction for risk assessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionRequest' }
+      responses:
+        '201': { description: Decision taken (APPROVE / HUMAN_REVIEW / DECLINE) }
+        '400': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/transactions/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [transactions]
+      summary: Get a transaction (staff or owner)
+      responses:
+        '200': { description: Transaction }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/transactions/simulate:
+    post:
+      tags: [transactions]
+      summary: Replay demo transactions through the pipeline (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SimulateRequest' }
+      responses:
+        '200': { description: Summary }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/reviews:
+    get:
+      tags: [reviews]
+      summary: Human review queue (ADMIN, ANALYST)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, APPROVED, REJECTED], default: OPEN } }
+      responses:
+        '200': { description: Page of review cases }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/reviews/{id}/resolve:
+    post:
+      tags: [reviews]
+      summary: Approve or reject a case (ADMIN, ANALYST)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveRequest' }
+      responses:
+        '200': { description: Resolved }
+        '409': { $ref: '#/components/responses/Problem' }
+  /api/risk/assessments/{transactionId}:
+    get:
+      tags: [reviews]
+      summary: Risk assessment of a transaction (staff or owner)
+      parameters:
+        - { name: transactionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Assessment }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/risk/stats:
+    get:
+      tags: [reviews]
+      summary: Decision counters (ADMIN, ANALYST)
+      responses:
+        '200': { description: Stats }
+  /api/notifications:
+    get:
+      tags: [notifications]
+      summary: Notifications (staff: all, CUSTOMER: own)
+      parameters:
+        - { name: unreadOnly, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200': { description: Page of notifications }
+  /api/audit/events:
+    get:
+      tags: [audit]
+      summary: Audit trail (ADMIN, ANALYST)
+      parameters:
+        - { name: action, in: query, schema: { type: string, maxLength: 80 } }
+        - { name: resourceId, in: query, schema: { type: string, maxLength: 80 } }
+      responses:
+        '200': { description: Page of audit events }
+        '403': { $ref: '#/components/responses/Problem' }
+  /api/audit/events/verify:
+    get:
+      tags: [audit]
+      summary: Verify the hash chain (ADMIN)
+      responses:
+        '200': { description: Verification result }
+  /api/ml/model/info:
+    get:
+      tags: [model]
+      summary: Served model version and policy (ADMIN, ANALYST)
+      responses:
+        '200': { description: Model info }
+  /api/ml/model/report:
+    get:
+      tags: [model]
+      summary: Benchmark, statistical tests, calibration and conformal summary (ADMIN, ANALYST)
+      responses:
+        '200': { description: Report }
+  /api/ml/projections:
+    get:
+      tags: [model]
+      summary: PCA / t-SNE / UMAP points (ADMIN, ANALYST)
+      responses:
+        '200': { description: Projections }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Problem:
+      description: RFC 7807 problem details
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, maxLength: 100 }
+        password: { type: string, maxLength: 128 }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string, maxLength: 200 }
+    TokenResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        tokenType: { type: string }
+        expiresIn: { type: integer }
+        username: { type: string }
+        role: { type: string, enum: [ADMIN, ANALYST, CUSTOMER] }
+        customerId: { type: string, format: uuid, nullable: true }
+    CustomerRequest:
+      type: object
+      required: [firstName, lastName, email, country]
+      properties:
+        firstName: { type: string, maxLength: 100 }
+        lastName: { type: string, maxLength: 100 }
+        email: { type: string, format: email, maxLength: 254 }
+        country: { type: string, pattern: '^[A-Z]{2}$' }
+        segment: { type: string, enum: [STANDARD, PREMIUM] }
+    CustomerUpdate:
+      type: object
+      required: [firstName, lastName, country]
+      properties:
+        firstName: { type: string, maxLength: 100 }
+        lastName: { type: string, maxLength: 100 }
+        country: { type: string, pattern: '^[A-Z]{2}$' }
+    TransactionRequest:
+      type: object
+      required: [amount, features]
+      properties:
+        customerId: { type: string, format: uuid }
+        amount: { type: number, minimum: 0, maximum: 1000000000 }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        merchant: { type: string, maxLength: 100 }
+        features:
+          type: array
+          description: V1..V28 PCA components
+          minItems: 28
+          maxItems: 28
+          items: { type: number }
+    SimulateRequest:
+      type: object
+      required: [count]
+      properties:
+        count: { type: integer, minimum: 1, maximum: 200 }
+        fraudRatio: { type: number, minimum: 0, maximum: 1 }
+    ResolveRequest:
+      type: object
+      required: [resolution]
+      properties:
+        resolution: { type: string, enum: [APPROVE, REJECT] }
+        note: { type: string, maxLength: 500 }
