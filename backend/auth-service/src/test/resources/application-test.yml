@@ -1,0 +1,9 @@
+riskpulse:
+  security:
+    service-key: test-service-key-0123456789
+  auth:
+    bcrypt-strength: 4
+    max-failures: 3
+    seed:
+      admin-password: AdminPassw0rd!2026
+      analyst-password: AnalystPassw0rd!2026

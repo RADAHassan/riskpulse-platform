@@ -4,7 +4,7 @@
 
 Usage (from the repo root, with the ML virtualenv):
 
-    python mlops/pipeline/run_pipeline.py                       # auto: train if ml/data/creditcard.csv exists, else import
+    python mlops/pipeline/run_pipeline.py                       # auto: train if the dataset exists, else import
     python mlops/pipeline/run_pipeline.py --mode import         # log the shipped results + bundle, no retraining
     python mlops/pipeline/run_pipeline.py --stages evaluate validate
 

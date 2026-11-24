@@ -1,0 +1,71 @@
+server:
+  port: 8081
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth}
+    username: ${SPRING_DATASOURCE_USERNAME:auth_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 8
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+riskpulse:
+  security:
+    issuer: ${JWT_ISSUER:riskpulse-auth}
+    service-key: ${SERVICE_KEY:}
+    jwks-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+    public-paths: /api/auth/login,/api/auth/refresh,/api/auth/logout,/.well-known/jwks.json
+  audit:
+    url: ${AUDIT_SERVICE_URL:}
+  jwt:
+    key-id: ${JWT_KEY_ID:rp-2026-1}
+    private-key: ${JWT_PRIVATE_KEY:}
+    public-key: ${JWT_PUBLIC_KEY:}
+    previous-public-key: ${JWT_PREVIOUS_PUBLIC_KEY:}
+    access-ttl: ${JWT_ACCESS_TTL:PT15M}
+    refresh-ttl: ${JWT_REFRESH_TTL:P7D}
+  auth:
+    max-failures: ${LOGIN_MAX_FAILURES:5}
+    lock-minutes: ${LOGIN_LOCK_MINUTES:15}
+    bcrypt-strength: ${BCRYPT_STRENGTH:12}
+    seed:
+      admin-username: ${SEED_ADMIN_USERNAME:admin}
+      admin-password: ${SEED_ADMIN_PASSWORD:}
+      analyst-username: ${SEED_ANALYST_USERNAME:analyst}
+      analyst-password: ${SEED_ANALYST_PASSWORD:}

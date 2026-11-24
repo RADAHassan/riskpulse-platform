@@ -1,0 +1,60 @@
+server:
+  port: 8083
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+spring:
+  application:
+    name: transaction-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/transaction}
+    username: ${SPRING_DATASOURCE_USERNAME:transaction_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 8
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+riskpulse:
+  security:
+    issuer: ${JWT_ISSUER:riskpulse-auth}
+    service-key: ${SERVICE_KEY:}
+    jwks-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+  audit:
+    url: ${AUDIT_SERVICE_URL:}
+  risk:
+    url: ${RISK_SERVICE_URL:http://localhost:8084}
+    timeout-ms: ${RISK_TIMEOUT_MS:4000}
+  simulator:
+    max-count: ${SIMULATOR_MAX_COUNT:200}
+    data-path: ${SIMULATOR_DATA_PATH:}

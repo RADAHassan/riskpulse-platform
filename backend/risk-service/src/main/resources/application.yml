@@ -1,0 +1,63 @@
+server:
+  port: 8084
+  shutdown: graceful
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+spring:
+  application:
+    name: risk-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/risk}
+    username: ${SPRING_DATASOURCE_USERNAME:risk_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 8
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+riskpulse:
+  security:
+    issuer: ${JWT_ISSUER:riskpulse-auth}
+    service-key: ${SERVICE_KEY:}
+    jwks-uri: ${JWT_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+  audit:
+    url: ${AUDIT_SERVICE_URL:}
+  notification:
+    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+  transaction:
+    url: ${TRANSACTION_SERVICE_URL:http://localhost:8083}
+  ml:
+    url: ${ML_SERVING_URL:http://localhost:8000}
+    timeout-ms: ${ML_SERVING_TIMEOUT_MS:1500}
+    retry-attempts: ${ML_RETRY_ATTEMPTS:2}
+    uncertainty-review-threshold: ${RISK_UNCERTAINTY_REVIEW_THRESHOLD:0.25}
