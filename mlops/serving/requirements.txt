@@ -1,0 +1,15 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+# Inference stack: versions must match ml/requirements.txt (the bundle is a pickle)
+numpy==2.5.4
+scikit-learn==1.9.1
+xgboost==3.4.1
+scipy==1.18.1
+joblib==1.6.0
+torch==2.15.0+cpu
+# Service
+fastapi==0.165.0
+uvicorn==0.54.0
+pydantic==2.14.4
+pydantic-settings==2.16.3
+prometheus-client==0.26.0
+mlflow-skinny==3.18.0

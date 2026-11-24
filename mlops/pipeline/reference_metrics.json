@@ -1,0 +1,28 @@
+{
+  "source": "ml/README.md — v2.3.8 verification addenda (shipped XGBoost params, 5 seeds, 10 expanding OOT windows) and 'Probability Calibration' section",
+  "note": "Numbers copied verbatim from the README; never recomputed by the pipeline in import mode.",
+  "shipped_xgboost": {
+    "pr_auc": 0.7599,
+    "pr_auc_ci_low": 0.6755,
+    "pr_auc_ci_high": 0.8324,
+    "roc_auc": 0.9692,
+    "precision_at_0_20pct": 0.4683,
+    "recall_at_0_20pct": 0.7409,
+    "f1_at_0_20pct": 0.5263,
+    "mcc_at_0_20pct": 0.5625,
+    "brier_calibrated": 0.000539,
+    "brier_skill_score": 0.5920,
+    "single_txn_latency_ms": 0.1816
+  },
+  "calibration_disjoint_oot": {
+    "brier_skill_score_raw": -0.7164,
+    "brier_skill_score_isotonic": 0.6390,
+    "ece_raw": 0.00656,
+    "ece_isotonic": 0.00011
+  },
+  "human_review_router_policy_c": {
+    "recall_alerts": 0.782,
+    "recall_with_marginal_review": 0.853,
+    "selective_risk_reduction": 0.856
+  }
+}

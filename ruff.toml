@@ -1,0 +1,14 @@
+line-length = 120
+target-version = "py312"
+extend-exclude = ["ml"]
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S603", "S607"]
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106"]
+"mlops/pipeline/*.py" = ["E402"]
+
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Header"]
