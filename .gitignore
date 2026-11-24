@@ -1,13 +1,55 @@
-# Virtual environment & Python cache
+# ── Python ───────────────────────────────
 venv/
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
 
-# Raw dataset (>100MB GitHub limit)
-data/*.csv
+# ── Datasets (too large for GitHub) ──────
+data/
+**/data/*.csv
+**/data/ieee-cis/
 
-# System / IDE files
-.DS_Store
+# ── MLflow local runs ────────────────────
+mlruns/
+mlartifacts/
+
+# ── Java / Maven / Gradle ────────────────
+target/
+build/
+.gradle/
+*.class
+*.log
+hs_err_pid*
+
+# ── Node / React ─────────────────────────
+node_modules/
+dist/
+coverage/
+.vite/
+npm-debug.log*
+
+# ── Secrets & local config (never commit) ─
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+kubeconfig
+*.kubeconfig
+infra/k8s/**/secret*.yaml
+!infra/k8s/**/secret*.example.yaml
+
+# ── IDE / OS ─────────────────────────────
 .vscode/
 .idea/
-data/ieee-cis/
+*.iml
+.DS_Store
+Thumbs.db

@@ -1,0 +1,14 @@
+# Owners are automatically requested for review on PRs touching their paths.
+# Later rules override earlier ones.
+# TODO: replace the commented handles with the real GitHub usernames of the team.
+
+*               @RADAHassan
+
+/ml/            @khadija12-tech
+# /backend/     @<backend-github-username>
+# /frontend/    @<frontend-github-username>
+# /mlops/       @<mlops-github-username>
+
+/infra/         @RADAHassan
+/.github/       @RADAHassan
+/SECURITY.md    @RADAHassan

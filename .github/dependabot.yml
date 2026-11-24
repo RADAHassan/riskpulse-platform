@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+
+  - package-ecosystem: pip
+    directory: /ml
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+
+  # Enable when the folders contain a pom.xml / package.json / requirements.txt:
+  # - package-ecosystem: maven
+  #   directory: /backend/auth-service
+  #   schedule: { interval: weekly }
+  # - package-ecosystem: npm
+  #   directory: /frontend
+  #   schedule: { interval: weekly }
+  # - package-ecosystem: pip
+  #   directory: /mlops/serving
+  #   schedule: { interval: weekly }
+  # - package-ecosystem: docker
+  #   directory: /mlops/serving
+  #   schedule: { interval: weekly }
