@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RADAHassan/riskpulse-platform/docs/contracts/predict-request.schema.json",
+  "title": "PredictRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["amount", "features"],
+  "properties": {
+    "transaction_id": { "type": "string", "maxLength": 64 },
+    "amount": { "type": "number", "minimum": 0, "maximum": 1000000000 },
+    "features": {
+      "type": "array",
+      "description": "V1..V28 (ULB Credit Card Fraud PCA components), finite numbers only",
+      "minItems": 28,
+      "maxItems": 28,
+      "items": { "type": "number" }
+    }
+  }
+}

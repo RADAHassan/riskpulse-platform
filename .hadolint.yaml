@@ -1,0 +1,9 @@
+# hadolint rules. Failure threshold = warning: any warning/error blocks (in pre-commit and CI).
+failure-threshold: warning
+trustedRegistries:
+  - docker.io
+  - gcr.io
+  - ghcr.io
+  - quay.io
+  - registry.k8s.io
+ignored: []

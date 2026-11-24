@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/RADAHassan/riskpulse-platform/docs/contracts/predict-response.schema.json",
+  "title": "PredictResponse",
+  "type": "object",
+  "required": ["prediction", "probability", "uncertainty", "decision", "model_version", "conformal_set"],
+  "properties": {
+    "transaction_id": { "type": ["string", "null"] },
+    "prediction": { "type": "integer", "enum": [0, 1], "description": "1 = fraud predicted (calibrated probability >= 0.5)" },
+    "probability": { "type": "number", "minimum": 0, "maximum": 1, "description": "isotonic-calibrated fraud probability" },
+    "uncertainty": { "type": "number", "minimum": 0, "maximum": 1, "description": "2*min(p,1-p)" },
+    "decision": { "type": "string", "enum": ["APPROVE", "HUMAN_REVIEW", "DECLINE"] },
+    "conformal_set": { "type": "array", "items": { "type": "string", "enum": ["LEGIT", "FRAUD"] }, "maxItems": 2 },
+    "conformal_review": { "type": "boolean" },
+    "human_review": { "type": "boolean" },
+    "review_reason": { "type": "string" },
+    "expected_loss_usd": { "type": "number" },
+    "raw_score": { "type": "number" },
+    "model_version": { "type": "string" },
+    "registry_version": { "type": ["string", "null"] },
+    "model_source": { "type": "string", "enum": ["mlflow", "local-bundle"] },
+    "inference_ms": { "type": "number" }
+  }
+}

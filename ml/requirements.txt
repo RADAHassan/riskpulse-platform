@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 numpy==2.5.4
 pandas==3.1.0
 scikit-learn==1.9.1
@@ -7,3 +8,5 @@ matplotlib==3.11.2
 joblib==1.6.0
 scipy==1.18.1
 umap-learn==0.5.12
+# CPU-only torch: the 29D bundle pickles a torch autoencoder (drift monitor)
+torch==2.15.0+cpu

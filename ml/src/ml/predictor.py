@@ -1,9 +1,10 @@
 import json
 import logging
-import joblib
 import numpy as np
 from collections import deque
 from pathlib import Path
+
+from src.ml.bundle_io import load_bundle
 
 logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,7 +30,7 @@ class RiskPulseMLPredictor:
         uncertainty_downgrade_only: bool = True,
         use_uncertainty_routing: bool = True,
     ):
-        bundle = joblib.load(_resolve_artifact(bundle_path))
+        bundle = load_bundle(_resolve_artifact(bundle_path))
         self.version = bundle["model_version"]
         self.scaler = bundle["scaler"]
         self.clf = bundle["xgb_model"]

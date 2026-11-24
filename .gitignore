@@ -53,3 +53,12 @@ infra/k8s/**/secret*.yaml
 *.iml
 .DS_Store
 Thumbs.db
+
+# ── Local tooling artefacts ───────────────
+.pip*.log
+mlops/pipeline/.pipeline_state.json
+mlops/pipeline/out/
+mlops/pipeline/mlflow-local.db
+mlops/pipeline/mlruns/
+*.db
+.scratch*
