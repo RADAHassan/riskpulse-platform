@@ -1,0 +1,105 @@
+# kube-prometheus-stack (chart 93.10.0) — versioned values for the kind cluster.
+# Install: scripts/k8s-monitoring.ps1
+fullnameOverride: kps
+defaultRules:
+  create: false            # RiskPulse ships its own rules (infra/monitoring/prometheus/rules)
+kubeEtcd: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeProxy: { enabled: false }
+
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    # pick up ServiceMonitors / PodMonitors / PrometheusRules of every namespace, not only those labelled by Helm
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    # k6 pushes its metrics with the Prometheus remote-write protocol (infra/load-tests)
+    enableRemoteWriteReceiver: true
+    externalLabels: { environment: kind }
+    resources:
+      requests: { cpu: 200m, memory: 512Mi }
+      limits: { cpu: "1", memory: 1Gi }
+    securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 2000, seccompProfile: { type: RuntimeDefault } }
+
+alertmanager:
+  alertmanagerSpec:
+    secrets: [alertmanager-webhook]      # holds the webhook URLs (never in Git)
+    resources:
+      requests: { cpu: 20m, memory: 48Mi }
+      limits: { cpu: 200m, memory: 128Mi }
+  config:
+    global: { resolve_timeout: 5m }
+    route:
+      receiver: default
+      group_by: [alertname, application]
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 4h
+      routes:
+        - matchers: ['alertname="Watchdog"']
+          receiver: "null"
+        - matchers: ['severity="critical"']
+          receiver: critical
+          group_wait: 0s
+          repeat_interval: 1h
+    receivers:
+      - name: "null"
+      - name: default
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-webhook/warning-url
+            send_resolved: true
+      - name: critical
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-webhook/critical-url
+            send_resolved: true
+    inhibit_rules:
+      - source_matchers: ['severity="critical"']
+        target_matchers: ['severity="warning"']
+        equal: [application]
+
+grafana:
+  fullnameOverride: grafana
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  persistence: { enabled: false }
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+      provider: { foldersFromFilesStructure: false, allowUiUpdates: false }
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+  grafana.ini:
+    users: { allow_sign_up: false }
+    auth.anonymous: { enabled: false }
+    analytics: { reporting_enabled: false, check_for_updates: false }
+    security: { cookie_samesite: strict }
+  additionalDataSources:
+    - { name: RiskPulse-Prometheus, uid: prometheus, type: prometheus, access: proxy, url: "http://kps-prometheus:9090", isDefault: false, editable: false }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+
+kube-state-metrics:
+  resources:
+    requests: { cpu: 20m, memory: 48Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+prometheus-node-exporter:
+  resources:
+    requests: { cpu: 20m, memory: 24Mi }
+    limits: { cpu: 200m, memory: 64Mi }
+prometheusOperator:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 300m, memory: 192Mi }
+  admissionWebhooks: { enabled: true, patch: { enabled: true } }

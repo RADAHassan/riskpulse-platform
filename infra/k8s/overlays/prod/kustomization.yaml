@@ -1,0 +1,28 @@
+# Production-like profile: 2 replicas, HPA 2..6, images tagged with the CI short SHA
+# (the pipeline runs `kustomize edit set image ...=...:<sha>`; Kyverno verifies the cosign signature).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - { name: ghcr.io/radahassan/riskpulse-api-gateway, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-auth-service, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-customer-service, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-transaction-service, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-risk-service, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-notification-service, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-audit-service, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-ml-serving, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-frontend, newTag: "0.0.0" }
+  - { name: ghcr.io/radahassan/riskpulse-mlflow, newTag: "0.0.0" }
+
+patches:
+  # production never pulls from a node cache of an unsigned image
+  - target: { kind: Deployment }
+    patch: |-
+      - { op: replace, path: /spec/template/spec/containers/0/imagePullPolicy, value: Always }
+  - target: { kind: StatefulSet, name: mlflow }
+    patch: |-
+      - { op: replace, path: /spec/template/spec/containers/0/imagePullPolicy, value: Always }

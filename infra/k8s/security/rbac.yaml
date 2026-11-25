@@ -1,0 +1,62 @@
+# Least-privilege RBAC. Application pods use dedicated ServiceAccounts that have NO role and NO API token
+# (automountServiceAccountToken: false): they never talk to the Kubernetes API. Nothing here is cluster-wide.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer
+  namespace: riskpulse
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: riskpulse-deployer
+  namespace: riskpulse
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list", "watch"]
+  # deliberately absent: secrets (read), pods/exec, any delete on workloads, any cluster-scoped resource
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer
+  namespace: riskpulse
+subjects:
+  - { kind: ServiceAccount, name: ci-deployer, namespace: riskpulse }
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: riskpulse-deployer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: riskpulse-viewer
+  namespace: riskpulse
+rules:
+  - apiGroups: ["", "apps", "autoscaling", "batch", "networking.k8s.io", "policy"]
+    resources: ["pods", "pods/log", "services", "endpoints", "deployments", "statefulsets", "replicasets", "horizontalpodautoscalers", "jobs", "ingresses", "networkpolicies", "poddisruptionbudgets", "events"]
+    verbs: ["get", "list", "watch"]

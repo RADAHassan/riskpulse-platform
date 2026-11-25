@@ -1,0 +1,30 @@
+route:
+  receiver: default
+  group_by: [alertname, application]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: critical
+      group_wait: 0s
+      repeat_interval: 1h
+      continue: false
+    - matchers: [severity="warning"]
+      receiver: default
+
+receivers:
+  - name: default
+    webhook_configs:
+      - url: http://alert-sink:9000/warning
+        send_resolved: true
+  - name: critical
+    webhook_configs:
+      - url: http://alert-sink:9000/critical
+        send_resolved: true
+
+inhibit_rules:
+  # a critical alert on an application mutes its warnings
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [application]

@@ -1,0 +1,7 @@
+# Cluster-side controls that do not need an operator: NetworkPolicies (default deny + allow-list) and RBAC.
+# Kyverno policies live in kyverno/ (applied after the Kyverno operator is installed).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - networkpolicies.yaml
+  - rbac.yaml

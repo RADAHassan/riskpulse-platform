@@ -1,0 +1,36 @@
+# Optional runtime detection (disabled by default: not installed unless `scripts/k8s-security.ps1 -Falco`).
+# eBPF driver (no kernel module). On kind/Docker Desktop (WSL2) the host kernel must expose BTF; if not, stay on the
+# documented rules and run Falco on a real cluster.
+driver:
+  kind: modern_ebpf
+tty: true
+falcosidekick: { enabled: false }
+collectors:
+  kubernetes: { enabled: false }
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { cpu: 500m, memory: 512Mi }
+customRules:
+  riskpulse-rules.yaml: |-
+    - rule: Shell spawned in a RiskPulse container
+      desc: A shell started inside an application container (images are distroless-like, a shell means intrusion).
+      condition: >
+        spawned_process and container and k8s.ns.name = "riskpulse" and proc.name in (sh, bash, ash, dash)
+      output: "Shell in RiskPulse pod (user=%user.name pod=%k8s.pod.name container=%container.name cmd=%proc.cmdline)"
+      priority: WARNING
+      tags: [riskpulse, shell]
+    - rule: Write below /etc or binaries in a RiskPulse container
+      desc: Root filesystems are read-only; any such write attempt is suspicious.
+      condition: >
+        open_write and container and k8s.ns.name = "riskpulse" and (fd.name startswith /etc or fd.name startswith /usr/bin)
+      output: "Write to a protected path (file=%fd.name pod=%k8s.pod.name proc=%proc.name)"
+      priority: ERROR
+      tags: [riskpulse, filesystem]
+    - rule: Outbound connection from ml-serving to the internet
+      desc: ml-serving only talks to MLflow; a public egress connection is exfiltration or a compromised dependency.
+      condition: >
+        outbound and container and k8s.ns.name = "riskpulse" and k8s.pod.label.app = "ml-serving"
+        and not fd.snet in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+      output: "ml-serving contacted a public address (dest=%fd.sip pod=%k8s.pod.name)"
+      priority: CRITICAL
+      tags: [riskpulse, network]

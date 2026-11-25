@@ -1,0 +1,27 @@
+# Laptop profile: 1 replica per service, HPA 1..3, locally built images loaded with `kind load`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - { name: ghcr.io/radahassan/riskpulse-api-gateway, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-auth-service, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-customer-service, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-transaction-service, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-risk-service, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-notification-service, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-audit-service, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-ml-serving, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-frontend, newTag: dev }
+  - { name: ghcr.io/radahassan/riskpulse-mlflow, newTag: dev }
+
+patches:
+  - target: { kind: Deployment }
+    patch: |-
+      - { op: replace, path: /spec/replicas, value: 1 }
+  - target: { kind: HorizontalPodAutoscaler }
+    patch: |-
+      - { op: replace, path: /spec/minReplicas, value: 1 }
+      - { op: replace, path: /spec/maxReplicas, value: 3 }

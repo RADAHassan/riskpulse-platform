@@ -1,0 +1,48 @@
+# Prometheus configuration for the Docker Compose stack (Kubernetes uses ServiceMonitors instead).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: compose
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: riskpulse-spring
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["api-gateway:8080"]
+        labels: { application: api-gateway }
+      - targets: ["auth-service:8081"]
+        labels: { application: auth-service }
+      - targets: ["customer-service:8082"]
+        labels: { application: customer-service }
+      - targets: ["transaction-service:8083"]
+        labels: { application: transaction-service }
+      - targets: ["risk-service:8084"]
+        labels: { application: risk-service }
+      - targets: ["notification-service:8085"]
+        labels: { application: notification-service }
+      - targets: ["audit-service:8086"]
+        labels: { application: audit-service }
+
+  - job_name: riskpulse-ml-serving
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ml-serving:8000"]
+        labels: { application: ml-serving }
+
+  - job_name: riskpulse-postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels: { application: postgres }
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

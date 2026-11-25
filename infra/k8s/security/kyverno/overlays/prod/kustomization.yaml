@@ -1,0 +1,5 @@
+# prod / CI deploy: images come from GHCR and are signed by the pipeline -> verifyImages is ENFORCED.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base

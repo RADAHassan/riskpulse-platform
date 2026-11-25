@@ -1,0 +1,10 @@
+# dev: locally built images (kind load) carry no Sigstore signature -> signature verification is audited only.
+# Every other policy stays in Deny (enforce) mode.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target: { kind: ImageValidatingPolicy, name: riskpulse-verify-image-signatures }
+    patch: |-
+      - { op: replace, path: /spec/validationActions, value: [Audit] }

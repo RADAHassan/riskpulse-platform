@@ -1,0 +1,22 @@
+# Monitoring add-ons applied after the Helm release: ServiceMonitors, PrometheusRule, alert sink, 10 dashboards.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - k8s/servicemonitors.yaml
+  - k8s/prometheusrule.yaml
+  - k8s/alert-sink.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels: { grafana_dashboard: "1" }
+configMapGenerator:
+  - { name: dash-system-health, files: [system-health.json=grafana/dashboards/system-health.json] }
+  - { name: dash-microservices, files: [microservices.json=grafana/dashboards/microservices.json] }
+  - { name: dash-cluster, files: [cluster.json=grafana/dashboards/cluster.json] }
+  - { name: dash-load-scalability, files: [load-scalability.json=grafana/dashboards/load-scalability.json] }
+  - { name: dash-high-availability, files: [high-availability.json=grafana/dashboards/high-availability.json] }
+  - { name: dash-ml-inference, files: [ml-inference.json=grafana/dashboards/ml-inference.json] }
+  - { name: dash-model-performance, files: [model-performance.json=grafana/dashboards/model-performance.json] }
+  - { name: dash-uncertainty, files: [uncertainty.json=grafana/dashboards/uncertainty.json] }
+  - { name: dash-errors-alerts, files: [errors-alerts.json=grafana/dashboards/errors-alerts.json] }
+  - { name: dash-security-posture, files: [security-posture.json=grafana/dashboards/security-posture.json] }

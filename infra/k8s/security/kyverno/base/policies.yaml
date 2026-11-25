@@ -1,0 +1,164 @@
+# Kyverno >= 1.20 only accepts the CEL-based policy types (policies.kyverno.io/v1): the legacy ClusterPolicy API was removed.
+# All policies run in Deny mode in the riskpulse namespace (the image-signature policy is switched to Audit by the dev
+# overlay because locally built images are not signed). Tested offline with `kyverno test` (see ../tests).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: riskpulse-restrict-pod-security
+  annotations:
+    policies.kyverno.io/title: Containers must be non-root, unprivileged and read-only
+    policies.kyverno.io/severity: high
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: riskpulse } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  validations:
+    - message: >-
+        Containers must set runAsNonRoot=true, allowPrivilegeEscalation=false, readOnlyRootFilesystem=true and drop ALL capabilities.
+      expression: >-
+        object.spec.containers.all(c,
+          has(c.securityContext) &&
+          has(c.securityContext.runAsNonRoot) && c.securityContext.runAsNonRoot == true &&
+          has(c.securityContext.allowPrivilegeEscalation) && c.securityContext.allowPrivilegeEscalation == false &&
+          has(c.securityContext.readOnlyRootFilesystem) && c.securityContext.readOnlyRootFilesystem == true &&
+          has(c.securityContext.capabilities) && has(c.securityContext.capabilities.drop) &&
+          'ALL' in c.securityContext.capabilities.drop)
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: riskpulse-deny-privileged
+  annotations:
+    policies.kyverno.io/title: No privileged containers, no host namespaces
+    policies.kyverno.io/severity: critical
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: riskpulse } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  validations:
+    - message: Privileged containers are not allowed.
+      expression: >-
+        object.spec.containers.all(c,
+          !has(c.securityContext) || !has(c.securityContext.privileged) || c.securityContext.privileged == false)
+    - message: hostNetwork, hostPID and hostIPC are not allowed.
+      expression: >-
+        (!has(object.spec.hostNetwork) || object.spec.hostNetwork == false) &&
+        (!has(object.spec.hostPID) || object.spec.hostPID == false) &&
+        (!has(object.spec.hostIPC) || object.spec.hostIPC == false)
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: riskpulse-disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Images must be pinned (no :latest, explicit tag or digest)
+    policies.kyverno.io/severity: medium
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: riskpulse } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  validations:
+    - message: "The :latest tag is forbidden: use an immutable tag (short SHA) or a digest."
+      expression: object.spec.containers.all(c, !c.image.endsWith(':latest'))
+    - message: Images must carry an explicit tag or digest.
+      expression: >-
+        object.spec.containers.all(c,
+          c.image.contains('@sha256:') || c.image.split('/')[size(c.image.split('/')) - 1].contains(':'))
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: riskpulse-restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Only ghcr.io/radahassan/* (third-party images only when pinned by digest)
+    policies.kyverno.io/severity: high
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: riskpulse } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  validations:
+    - message: Images must come from ghcr.io/radahassan/* (or a third-party image pinned by @sha256 digest).
+      expression: >-
+        object.spec.containers.all(c, c.image.startsWith('ghcr.io/radahassan/') || c.image.contains('@sha256:'))
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: riskpulse-require-resources
+  annotations:
+    policies.kyverno.io/title: CPU and memory requests and limits are mandatory
+    policies.kyverno.io/severity: medium
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: riskpulse } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  validations:
+    - message: CPU and memory requests and limits are required on every container.
+      expression: >-
+        object.spec.containers.all(c,
+          has(c.resources) && has(c.resources.requests) && has(c.resources.limits) &&
+          'cpu' in c.resources.requests && 'memory' in c.resources.requests &&
+          'cpu' in c.resources.limits && 'memory' in c.resources.limits)
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: riskpulse-require-probes
+  annotations:
+    policies.kyverno.io/title: Liveness and readiness probes are mandatory
+    policies.kyverno.io/severity: medium
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: riskpulse } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  matchConditions:
+    # the MLflow pipeline Job is a batch process with no endpoint to probe
+    - name: not-the-batch-job
+      expression: >-
+        !(has(object.metadata.labels) && 'app.kubernetes.io/name' in object.metadata.labels &&
+          object.metadata.labels['app.kubernetes.io/name'] == 'mlops-pipeline')
+  validations:
+    - message: Liveness and readiness probes are required on every container.
+      expression: object.spec.containers.all(c, has(c.livenessProbe) && has(c.readinessProbe))
+---
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata:
+  name: riskpulse-verify-image-signatures
+  annotations:
+    policies.kyverno.io/title: RiskPulse images must be signed by this repository's CI (cosign keyless, Sigstore)
+    policies.kyverno.io/severity: critical
+spec:
+  validationActions: [Deny]
+  webhookConfiguration: { timeoutSeconds: 30 }
+  matchConstraints:
+    namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: riskpulse } }
+    resourceRules:
+      - { apiGroups: [""], apiVersions: [v1], operations: [CREATE, UPDATE], resources: [pods] }
+  matchImageReferences:
+    - glob: "ghcr.io/radahassan/riskpulse-*"
+  attestors:
+    - name: github-actions
+      cosign:
+        keyless:
+          identities:
+            - issuer: "https://token.actions.githubusercontent.com"
+              subjectRegExp: "^https://github\\.com/RADAHassan/riskpulse-platform/\\.github/workflows/.+@refs/(heads|tags)/.+$"
+        ctlog:
+          url: https://rekor.sigstore.dev
+  validations:
+    - message: The image signature could not be verified (unsigned or signed by an unknown identity).
+      expression: >-
+        images.containers.map(image, verifyImageSignatures(image, [attestors['github-actions']])).all(e, e > 0)

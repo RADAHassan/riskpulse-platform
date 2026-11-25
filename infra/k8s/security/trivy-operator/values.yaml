@@ -1,0 +1,25 @@
+# Trivy Operator: scans every workload image, Kubernetes config and RBAC in the cluster, continuously.
+# Results are CRDs (VulnerabilityReport, ConfigAuditReport, ...) AND Prometheus metrics (trivy_image_vulnerabilities...)
+# feeding the "Security posture" Grafana dashboard and the NewCriticalVulnerability alert.
+operator:
+  scanJobsConcurrentLimit: 2
+  vulnerabilityScannerScanOnlyCurrentRevisions: true
+  scannerReportTTL: 24h
+  metricsVulnIdEnabled: false
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 60s
+trivy:
+  severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+  ignoreUnfixed: false
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+targetNamespaces: riskpulse
+excludeNamespaces: kube-system,kyverno,monitoring,ingress-nginx,trivy-system,sealed-secrets
+compliance:
+  failEntriesLimit: 10
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { cpu: 300m, memory: 384Mi }

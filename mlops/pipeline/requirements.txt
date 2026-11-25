@@ -1,3 +1,11 @@
--r ../../ml/requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
+# Same versions as ml/requirements.txt (the bundle is a pickle) + MLflow client
+numpy==2.5.4
+pandas==3.1.0
+scikit-learn==1.9.1
+xgboost-cpu==3.4.1  # CPU-only wheel: the default xgboost wheel pulls ~1 GB of CUDA/NCCL libraries on Linux
+joblib==1.6.0
+scipy==1.18.1
+torch==2.15.0+cpu
 mlflow==3.18.0
 sqlalchemy<2.1

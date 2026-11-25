@@ -17,7 +17,9 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 ML_DIR = REPO / "ml"
 ARTIFACTS = ML_DIR / "artifacts"
-STATE_FILE = HERE / ".pipeline_state.json"
+# writable scratch space (a read-only root filesystem in containers: set PIPELINE_WORKDIR=/tmp)
+WORK = Path(os.environ.get("PIPELINE_WORKDIR", str(HERE)))
+STATE_FILE = WORK / ".pipeline_state.json"
 DATASET = ML_DIR / "data" / "creditcard.csv"
 
 EXPERIMENT = "riskpulse-fraud"
@@ -34,7 +36,7 @@ if str(HERE) not in sys.path:
 
 def tracking_uri() -> str:
     """MLflow tracking server (env MLFLOW_TRACKING_URI) or a local SQLite file for offline runs."""
-    return os.environ.get("MLFLOW_TRACKING_URI") or f"sqlite:///{(HERE / 'mlflow-local.db').as_posix()}"
+    return os.environ.get("MLFLOW_TRACKING_URI") or f"sqlite:///{(WORK / 'mlflow-local.db').as_posix()}"
 
 
 def dataset_present() -> bool:
@@ -48,7 +50,7 @@ class Context:
     experiment_id: str | None = None
     bundle_path: str = str(ARTIFACTS / "riskpulse_29d_bundle.joblib")
     conformal_path: str = str(ARTIFACTS / "conformal.json")
-    out_dir: str = str(HERE / "out")
+    out_dir: str = str(WORK / "out")
     metrics: dict = field(default_factory=dict)
     gates: dict = field(default_factory=dict)
     gates_passed: bool | None = None

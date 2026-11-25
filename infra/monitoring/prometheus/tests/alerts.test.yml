@@ -1,0 +1,142 @@
+# promtool test rules infra/monitoring/prometheus/tests/alerts.test.yml
+rule_files:
+  - ../rules/riskpulse-alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ------------------------------------------------------------------ service unavailable -> critical
+  - name: service down raises a critical alert after 1 minute
+    interval: 1m
+    input_series:
+      - series: 'up{job="riskpulse-spring", application="risk-service", instance="risk-service:8084"}'
+        values: '1 1 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: riskpulse-spring
+              application: risk-service
+              instance: risk-service:8084
+            exp_annotations:
+              summary: "risk-service is unavailable"
+              description: "Prometheus cannot scrape risk-service:8084 (job riskpulse-spring) for more than 1 minute."
+              runbook: "docs/runbook.md#servicedown"
+
+  # ------------------------------------------------------------------ errors > 5 %
+  - name: error rate above 5 percent fires, below does not
+    interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="riskpulse-spring", application="transaction-service", status="200", uri="/api/transactions"}'
+        values: '0+90x15'
+      - series: 'http_server_requests_seconds_count{job="riskpulse-spring", application="transaction-service", status="500", uri="/api/transactions"}'
+        values: '0+10x15'
+      - series: 'http_server_requests_seconds_count{job="riskpulse-spring", application="audit-service", status="200", uri="/api/audit/events"}'
+        values: '0+100x15'
+      - series: 'http_server_requests_seconds_count{job="riskpulse-spring", application="audit-service", status="500", uri="/api/audit/events"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: transaction-service
+            exp_annotations:
+              summary: "HTTP 5xx rate above 5 % on transaction-service"
+              description: "10% of the requests of transaction-service fail with a 5xx."
+              runbook: "docs/runbook.md#higherrorrate"
+
+  # ------------------------------------------------------------------ response time > 2 s
+  - name: p95 above 2 seconds fires
+    interval: 1m
+    input_series:
+      - series: 'http_server_requests_seconds_bucket{job="riskpulse-spring", application="risk-service", uri="/internal/risk/assess", le="1"}'
+        values: '0+0x15'
+      - series: 'http_server_requests_seconds_bucket{job="riskpulse-spring", application="risk-service", uri="/internal/risk/assess", le="2"}'
+        values: '0+0x15'
+      - series: 'http_server_requests_seconds_bucket{job="riskpulse-spring", application="risk-service", uri="/internal/risk/assess", le="5"}'
+        values: '0+60x15'
+      - series: 'http_server_requests_seconds_bucket{job="riskpulse-spring", application="risk-service", uri="/internal/risk/assess", le="+Inf"}'
+        values: '0+60x15'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: SlowResponses
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: risk-service
+            exp_annotations:
+              summary: "p95 response time above 2 s on risk-service"
+              description: "95th percentile latency of risk-service is 4.85s."
+              runbook: "docs/runbook.md#slowresponses"
+
+  # ------------------------------------------------------------------ CPU > 80 %
+  - name: JVM process cpu above 80 percent fires
+    interval: 1m
+    input_series:
+      - series: 'process_cpu_usage{job="riskpulse-spring", application="api-gateway", instance="api-gateway:8080"}'
+        values: '0.9x15'
+      - series: 'process_cpu_usage{job="riskpulse-spring", application="auth-service", instance="auth-service:8081"}'
+        values: '0.2x15'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HighProcessCpu
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: api-gateway
+              instance: api-gateway:8080
+            exp_annotations:
+              summary: "CPU above 80 % in api-gateway"
+              description: "Process CPU of api-gateway (api-gateway:8080) is 90%."
+              runbook: "docs/runbook.md#highcpuusage"
+
+  # ------------------------------------------------------------------ high ML uncertainty -> human review
+  - name: more than 10 percent uncertain predictions fires the human review alert
+    interval: 1m
+    input_series:
+      - series: 'riskpulse_ml_prediction_uncertainty_bucket{le="0.25"}'
+        values: '0+80x25'
+      - series: 'riskpulse_ml_prediction_uncertainty_bucket{le="+Inf"}'
+        values: '0+100x25'
+      - series: 'riskpulse_ml_prediction_uncertainty_count'
+        values: '0+100x25'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HighMlUncertainty
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: HighMlUncertainty
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              application: ml-serving
+            exp_annotations:
+              summary: "High ML uncertainty: more than 10 % of predictions need a human review"
+              description: "20% of the predictions have an uncertainty >= 0.25 (possible data drift)."
+              runbook: "docs/runbook.md#highmluncertainty"
+
+  # ------------------------------------------------------------------ pod failure
+  - name: crash looping pod is a critical pod failure
+    interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_waiting_reason{namespace="riskpulse", pod="risk-service-abc", container="risk-service", reason="CrashLoopBackOff"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: PodFailure
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: riskpulse
+              pod: risk-service-abc
+            exp_annotations:
+              summary: "Pod risk-service-abc is failing"
+              description: "Pod risk-service-abc is Failed/Unknown or stuck in a waiting error state."
+              runbook: "docs/runbook.md#podfailure"

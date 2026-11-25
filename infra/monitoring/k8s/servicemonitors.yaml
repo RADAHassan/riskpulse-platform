@@ -1,0 +1,59 @@
+# One ServiceMonitor per scrape family. The `job` and `application` labels are what the alert rules and dashboards use.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: riskpulse-spring
+  namespace: monitoring
+  labels: { app.kubernetes.io/part-of: riskpulse }
+spec:
+  namespaceSelector: { matchNames: [riskpulse] }
+  selector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [api-gateway, auth-service, customer-service, transaction-service, risk-service, notification-service, audit-service]
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - { targetLabel: job, replacement: riskpulse-spring }
+        - { sourceLabels: [__meta_kubernetes_service_label_app_kubernetes_io_name], targetLabel: application }
+        - { sourceLabels: [__meta_kubernetes_pod_name], targetLabel: pod }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: riskpulse-ml-serving
+  namespace: monitoring
+  labels: { app.kubernetes.io/part-of: riskpulse }
+spec:
+  namespaceSelector: { matchNames: [riskpulse] }
+  selector:
+    matchLabels: { app.kubernetes.io/name: ml-serving }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      relabelings:
+        - { targetLabel: job, replacement: riskpulse-ml-serving }
+        - { targetLabel: application, replacement: ml-serving }
+        - { sourceLabels: [__meta_kubernetes_pod_name], targetLabel: pod }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: riskpulse-postgres
+  namespace: monitoring
+  labels: { app.kubernetes.io/part-of: riskpulse }
+spec:
+  namespaceSelector: { matchNames: [riskpulse] }
+  selector:
+    matchLabels: { app.kubernetes.io/name: postgres-exporter }
+  endpoints:
+    - port: metrics
+      interval: 30s
+      relabelings:
+        - { targetLabel: job, replacement: riskpulse-postgres }
+        - { targetLabel: application, replacement: postgres }

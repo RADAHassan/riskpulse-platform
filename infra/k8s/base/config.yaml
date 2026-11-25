@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: riskpulse-config
+  namespace: riskpulse
+  labels: { app.kubernetes.io/part-of: riskpulse }
+data:
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
+  JWT_ISSUER: riskpulse-auth
+  JWT_KEY_ID: rp-k8s-1
+  JWT_JWKS_URI: http://auth-service:8081/.well-known/jwks.json
+  AUDIT_SERVICE_URL: http://audit-service:8086
+  AUTH_SERVICE_URL: http://auth-service:8081
+  CUSTOMER_SERVICE_URL: http://customer-service:8082
+  TRANSACTION_SERVICE_URL: http://transaction-service:8083
+  RISK_SERVICE_URL: http://risk-service:8084
+  NOTIFICATION_SERVICE_URL: http://notification-service:8085
+  ML_SERVING_URL: http://ml-serving:8000
+  CORS_ALLOWED_ORIGINS: http://riskpulse.localtest.me:8088
+  TRUST_FORWARDED_FOR: "true"
+  RATE_LIMIT_IP_PER_MIN: "300"
+  RATE_LIMIT_USER_PER_MIN: "600"
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MODEL_URI: models:/riskpulse-fraud@champion

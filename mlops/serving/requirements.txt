@@ -2,7 +2,7 @@
 # Inference stack: versions must match ml/requirements.txt (the bundle is a pickle)
 numpy==2.5.4
 scikit-learn==1.9.1
-xgboost==3.4.1
+xgboost-cpu==3.4.1  # CPU-only wheel: the default xgboost wheel pulls ~1 GB of CUDA/NCCL libraries on Linux
 scipy==1.18.1
 joblib==1.6.0
 torch==2.15.0+cpu

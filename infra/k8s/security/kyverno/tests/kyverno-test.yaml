@@ -1,0 +1,22 @@
+# kyverno test infra/k8s/security/kyverno/tests   (or: docker run ghcr.io/kyverno/kyverno-cli:v1.20.0 test ...)
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: riskpulse-admission-policies
+policies:
+  - ../base/policies.yaml
+resources:
+  - resources.yaml
+results:
+  - { policy: riskpulse-restrict-pod-security, isValidatingPolicy: true, resources: [good-pod, pinned-third-party-pod, latest-pod, untagged-pod, foreign-registry-pod, no-limits-pod, no-probes-pod, privileged-pod], kind: Pod, result: pass }
+  - { policy: riskpulse-restrict-pod-security, isValidatingPolicy: true, resources: [root-pod], kind: Pod, result: fail }
+  - { policy: riskpulse-deny-privileged, isValidatingPolicy: true, resources: [good-pod, root-pod], kind: Pod, result: pass }
+  - { policy: riskpulse-deny-privileged, isValidatingPolicy: true, resources: [privileged-pod], kind: Pod, result: fail }
+  - { policy: riskpulse-disallow-latest-tag, isValidatingPolicy: true, resources: [good-pod, pinned-third-party-pod], kind: Pod, result: pass }
+  - { policy: riskpulse-disallow-latest-tag, isValidatingPolicy: true, resources: [latest-pod, untagged-pod], kind: Pod, result: fail }
+  - { policy: riskpulse-restrict-image-registries, isValidatingPolicy: true, resources: [good-pod, pinned-third-party-pod], kind: Pod, result: pass }
+  - { policy: riskpulse-restrict-image-registries, isValidatingPolicy: true, resources: [foreign-registry-pod], kind: Pod, result: fail }
+  - { policy: riskpulse-require-resources, isValidatingPolicy: true, resources: [good-pod], kind: Pod, result: pass }
+  - { policy: riskpulse-require-resources, isValidatingPolicy: true, resources: [no-limits-pod], kind: Pod, result: fail }
+  - { policy: riskpulse-require-probes, isValidatingPolicy: true, resources: [good-pod], kind: Pod, result: pass }
+  - { policy: riskpulse-require-probes, isValidatingPolicy: true, resources: [no-probes-pod], kind: Pod, result: fail }

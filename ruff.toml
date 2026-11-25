@@ -12,3 +12,4 @@ ignore = ["S603", "S607"]
 
 [lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Header"]
+"scripts/gen_dashboards.py" = ["E501"]
